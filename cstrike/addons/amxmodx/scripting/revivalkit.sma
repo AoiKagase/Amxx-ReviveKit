@@ -574,16 +574,19 @@ public task_setplayer(taskid)
 	strip_user_weapons(id);
 	give_item(id, "weapon_knife");
 	set_user_health(id, g_values[V_REVIVAL_HEALTH]);
-	
-	message_begin(MSG_ONE,g_msg_data[MSG_SCREEN_FADE], _, id)      ;
-	write_short(seconds(2));
-	write_short(seconds(2));
-	write_short(0);
-	write_byte(0);
-	write_byte(0);
-	write_byte(0);
-	write_byte(255);
-	message_end();
+
+	if (g_values[V_REVIVAL_SC_FADE])
+	{
+		message_begin(MSG_ONE,g_msg_data[MSG_SCREEN_FADE], _, id);
+		write_short(seconds(g_values[V_REVIVAL_FADE_TIME]));
+		write_short(seconds(g_values[V_REVIVAL_FADE_TIME]));
+		write_short(0);
+		write_byte(0);
+		write_byte(0);
+		write_byte(0);
+		write_byte(255);
+		message_end();
+	}	
 }
 
 stock bool:findemptyloc(ent, Float:radius)
