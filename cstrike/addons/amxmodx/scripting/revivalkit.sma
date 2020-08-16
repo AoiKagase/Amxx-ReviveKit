@@ -50,16 +50,6 @@ enum _:CVAR_LIST
 	REVIVAL_FADE_TIME,
 };
 
-enum _:CVAR_VALUE
-{
-	V_REVIVAL_TIME,
-	V_REVIVAL_HEALTH,
-	Float:V_REVIVAL_DISTANCE,
-	V_REVIVAL_COST,
-	V_REVIVAL_SC_FADE,
-	V_REVIVAL_FADE_TIME,
-};
-
 enum _:PLAYER_DATA
 {
 	bool:HAS_KIT		,
@@ -79,7 +69,6 @@ new g_player_data			[MAX_PLAYERS + 1][PLAYER_DATA];
 new g_msg_data				[MSG_DATA];
 
 new g_cvars					[CVAR_LIST];
-new g_values				[CVAR_VALUE];
 
 static const PLUGIN_NAME	[] 	= "Revival Kit";
 static const PLUGIN_AUTHOR	[] 	= "Cheap_Suit / +ARUKARI-";
@@ -138,18 +127,19 @@ public plugin_precache()
 
 public cmd_buyrkit(id)
 {
+	new cost = get_pcvar_num(g_cvars[REVIVAL_COST]);
 	if(!is_user_alive(id))
 		client_print(id, print_chat, "You need to be alive.");
 	else if(g_player_data[id][HAS_KIT])
 		client_print(id, print_chat, "You already have a revival kit.");
 	else if(!cs_get_user_buyzone(id))
 		client_print(id, print_chat, "You need to be in the buyzone.");
-	else if(cs_get_user_money(id) < g_values[V_REVIVAL_COST])
-		client_print(id, print_chat, "You dont have enough money (Cost:$%d)", g_values[V_REVIVAL_COST]);
+	else if(cs_get_user_money(id) < cost)
+		client_print(id, print_chat, "You dont have enough money (Cost:$%d)", cost);
 	else
 	{
 		g_player_data[id][HAS_KIT] = true;
-		cs_set_user_money(id, cs_get_user_money(id) - g_values[V_REVIVAL_COST]);
+		cs_set_user_money(id, cs_get_user_money(id) - cost);
 		client_print(id, print_chat, "You bought a revival kit. Hold your +use key (E) to revive a teammate.");
 		client_cmd(id, "spk %s", SOUND_EQUIP);
 		
@@ -392,7 +382,7 @@ public fwd_emitsound(id, channel, sound[])
 	get_user_name(lucky_bastard, name, 31);
 	client_print(id, print_chat, "Reviving %s", name);
 
-	new revivaltime = g_values[V_REVIVAL_TIME];
+	new revivaltime = get_pcvar_num(g_cvars[REVIVAL_TIME]);
 	msg_bartime(id, revivaltime);
 	
 	new Float:gametime = get_gametime();
@@ -488,9 +478,10 @@ stock find_dead_body(id)
 	static Float:origin[3];
 	pev(id, pev_origin, origin);
 	
-	new ent;
-	static classname[32]	;
-	while((ent = engfunc(EngFunc_FindEntityInSphere, ent, origin, g_values[V_REVIVAL_DISTANCE])) != 0)
+	new ent, Float:distance = get_pcvar_float(g_cvars[REVIVAL_DISTANCE]);
+	static classname[32];
+
+	while((ent = engfunc(EngFunc_FindEntityInSphere, ent, origin, distance)) != 0)
 	{
 		pev(ent, pev_classname, classname, 31);
 		if(equali(classname, "fake_corpse") && is_ent_visible(id, ent))
@@ -567,13 +558,14 @@ public task_setplayer(taskid)
 
 	strip_user_weapons(id);
 	give_item(id, "weapon_knife");
-	set_user_health(id, g_values[V_REVIVAL_HEALTH]);
+	set_user_health(id, get_pcvar_num(g_cvars[REVIVAL_HEALTH]));
 
-	if (g_values[V_REVIVAL_SC_FADE])
+	if (get_pcvar_num(g_cvars[REVIVAL_SC_FADE]))
 	{
+		new sec = seconds(get_pcvar_num(g_cvars[REVIVAL_FADE_TIME]));
 		message_begin(MSG_ONE,g_msg_data[MSG_SCREEN_FADE], _, id);
-		write_short(seconds(g_values[V_REVIVAL_FADE_TIME]));
-		write_short(seconds(g_values[V_REVIVAL_FADE_TIME]));
+		write_short(sec);
+		write_short(sec);
 		write_short(0);
 		write_byte(0);
 		write_byte(0);
