@@ -7,8 +7,8 @@
 //=====================================
 //  VERSION CHECK
 //=====================================
-#if AMXX_VERSION_NUM < 190
-	#assert "AMX Mod X v1.9.0 or greater library required!"
+#if AMXX_VERSION_NUM < 182
+	#assert "AMX Mod X v1.8.2 or greater library required!"
 #endif
 
 #pragma semicolon 1
@@ -62,9 +62,9 @@ enum _:CVAR_VALUE
 
 enum _:PLAYER_DATA
 {
-	bool:HAS_KIT,
-	bool:WAS_DUCKING,
-	Float:REVIVE_DELAY,
+	bool:HAS_KIT		,
+	bool:WAS_DUCKING	,
+	Float:REVIVE_DELAY	,
 	Float:BODY_ORIGIN	[3],
 };
 
@@ -83,7 +83,7 @@ new g_values				[CVAR_VALUE];
 
 static const PLUGIN_NAME	[] 	= "Revival Kit";
 static const PLUGIN_AUTHOR	[] 	= "Cheap_Suit / +ARUKARI-";
-static const PLUGIN_VERSION	[]	= "2.0";
+static const PLUGIN_VERSION	[]	= "2.1";
 
 public plugin_init()
 {
@@ -93,32 +93,25 @@ public plugin_init()
 	register_clcmd("say /buyrkit", 	"cmd_buyrkit");
 	register_clcmd("buyrkit", 		"cmd_buyrkit");
 
-	g_cvars		[REVIVAL_TIME]		= create_cvar("amx_revkit_time",			"6");
-	g_cvars		[REVIVAL_HEALTH]	= create_cvar("amx_revkit_health",			"75");
-	g_cvars		[REVIVAL_DISTANCE]	= create_cvar("amx_revkit_distance",		"70.0");
-	g_cvars		[REVIVAL_COST]		= create_cvar("amx_revkit_cost", 			"1200");
-	g_cvars		[REVIVAL_SC_FADE]	= create_cvar("amx_revkit_screen_fade", 	"1");
-	g_cvars		[REVIVAL_FADE_TIME]	= create_cvar("amx_revkit_screen_fade_time","2");
-
-	bind_pcvar_num(g_cvars[REVIVAL_TIME],		g_values[V_REVIVAL_TIME]);
-	bind_pcvar_num(g_cvars[REVIVAL_HEALTH], 	g_values[V_REVIVAL_HEALTH]);
-	bind_pcvar_num(g_cvars[REVIVAL_COST], 		g_values[V_REVIVAL_COST]);
-	bind_pcvar_float(g_cvars[REVIVAL_DISTANCE], g_values[V_REVIVAL_DISTANCE]);
-	bind_pcvar_num(g_cvars[REVIVAL_SC_FADE], 	g_values[V_REVIVAL_SC_FADE]);
-	bind_pcvar_num(g_cvars[REVIVAL_FADE_TIME], 	g_values[V_REVIVAL_FADE_TIME]);
+	g_cvars		[REVIVAL_TIME]		= register_cvar("amx_revkit_time",				"6");
+	g_cvars		[REVIVAL_HEALTH]	= register_cvar("amx_revkit_health",			"75");
+	g_cvars		[REVIVAL_DISTANCE]	= register_cvar("amx_revkit_distance",			"70.0");
+	g_cvars		[REVIVAL_COST]		= register_cvar("amx_revkit_cost", 				"1200");
+	g_cvars		[REVIVAL_SC_FADE]	= register_cvar("amx_revkit_screen_fade", 		"1");
+	g_cvars		[REVIVAL_FADE_TIME]	= register_cvar("amx_revkit_screen_fade_time",	"2");
 
 	g_msg_data	[MSG_BAR_TIME]		= get_user_msgid("BarTime");
 	g_msg_data	[MSG_CLCORPSE]		= get_user_msgid("ClCorpse");
 	g_msg_data	[MSG_SCREEN_FADE]	= get_user_msgid("ScreenFade");
 	g_msg_data	[MSG_STATUS_ICON]	= get_user_msgid("StatusIcon");
 
-	register_message(g_msg_data	[MSG_CLCORPSE], "message_clcorpse");
+	register_message(g_msg_data	[MSG_CLCORPSE], 			"message_clcorpse");
 	
-	register_event	("HLTV", 		"event_hltv",	"a", "1=0", "2=0");
+	register_event	("HLTV", 				"event_hltv",	"a", "1=0", "2=0");
 	
-	RegisterHam		(Ham_Killed,			"player",	"event_death");
-	RegisterHam		(Ham_Player_PostThink,	"player",	"fwd_playerpostthink");
-	RegisterHam		(Ham_Touch,				ENTITY_KIT,	"fwd_touch");
+	RegisterHam		(Ham_Killed,			"player",		"event_death");
+	RegisterHam		(Ham_Player_PostThink,	"player",		"fwd_playerpostthink");
+	RegisterHam		(Ham_Touch,				ENTITY_KIT,		"fwd_touch");
 
 	register_forward(FM_EmitSound,			"fwd_emitsound");
 }
@@ -203,9 +196,10 @@ public reset_player(id)
 	remove_task(TASKID_SETUSER + id);
 	
 	msg_bartime(id, 0);
-	g_player_data[id][REVIVE_DELAY] = 0.0;
+
+	g_player_data[id][REVIVE_DELAY] = 0;
 	g_player_data[id][WAS_DUCKING]	= false;
-	g_player_data[id][BODY_ORIGIN]	= Float:{0.0, 0.0, 0.0};
+	g_player_data[id][BODY_ORIGIN]	= {0, 0, 0};
 }
 
 public client_disconnected(id)
@@ -402,7 +396,7 @@ public fwd_emitsound(id, channel, sound[])
 	msg_bartime(id, revivaltime);
 	
 	new Float:gametime = get_gametime();
-	g_player_data[id][REVIVE_DELAY] = gametime + float(revivaltime) - 0.01;
+	g_player_data[id][REVIVE_DELAY] = _:(gametime + float(revivaltime) - 0.01);
 
 	emit_sound(id, CHAN_AUTO, SOUND_START, VOL_NORM, ATTN_NORM, 0, PITCH_NORM);
 	set_task(0.0, "task_revive", TASKID_REVIVE + id);
@@ -637,13 +631,14 @@ stock bool:is_hull_vacant(const Float:origin[3])
 stock remove_all_entity(className[])
 {
 	new iEnt = -1;
-
+	new flags;
 	while ((iEnt = engfunc(EngFunc_FindEntityByString, iEnt, "classname", className)))
 	{
 		if (!pev_valid(iEnt))
 			continue;
 
-		engfunc(EngFunc_RemoveEntity, iEnt);
+		pev(iEnt, pev_flags, flags);
+		set_pev(iEnt, pev_flags, flags | FL_KILLME);
 	}
 }
 
