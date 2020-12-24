@@ -1,4 +1,5 @@
 #include <amxmodx>
+#include <amxmisc>
 #include <cstrike>
 #include <fakemeta>
 #include <fun>
@@ -30,7 +31,7 @@ static const PLUGIN_VERSION	[]		= "0.1";
 	#define  MAX_NAME_LENGTH			32
 #endif
 
-#define TASKID_REVIVE 	            1337
+#define TASKID_DIE_COUNT			41320
 #define TASKID_RESPAWN 	            1338
 #define TASKID_CHECKRE 	            1339
 #define TASKID_CHECKST 	            13310
@@ -39,6 +40,8 @@ static const PLUGIN_VERSION	[]		= "0.1";
 
 #define pev_zorigin					pev_fuser4
 #define seconds(%1) 				((1<<12) * (%1))
+
+#define HUDINFO_PARAMS
 
 enum _:E_SOUNDS
 {
@@ -59,6 +62,7 @@ enum _:E_CVARS
 	REVIVAL_COST,
 	REVIVAL_SC_FADE,
 	Float:REVIVAL_TIME,
+	Float:REVIVAL_DEATH_TIME,
 	Float:REVIVAL_DISTANCE,
 	Float:REVIVAL_SC_FADE_TIME,
 };
@@ -67,6 +71,7 @@ enum _:E_PLAYER_DATA
 {
 	bool:HAS_KIT		,
 	bool:WAS_DUCKING	,
+	Float:DEAD_LINE		,
 	Float:REVIVE_DELAY	,
 	Float:BODY_ORIGIN	[3],
 };
@@ -111,6 +116,7 @@ new const ENTITY_CLASS_NAME[E_CLASS_NAME][MAX_NAME_LENGTH] =
 new g_cvars			[E_CVARS];
 new g_msg_data		[E_MESSAGES];
 new g_player_data	[MAX_PLAYERS + 1][E_PLAYER_DATA];
+new g_sync_obj;
 //====================================================
 //  PLUGIN PRECACHE
 //====================================================
@@ -140,18 +146,23 @@ public plugin_init()
 	bind_pcvar_num	(create_cvar("rkit_health", 			"75"), 		g_cvars[REVIVAL_HEALTH]);
 	bind_pcvar_num	(create_cvar("rkit_cost", 				"1200"), 	g_cvars[REVIVAL_COST]);
 	bind_pcvar_num	(create_cvar("rkit_screen_fade",		"1"), 		g_cvars[REVIVAL_SC_FADE]);
-	bind_pcvar_float(create_cvar("rkit_time", 				"120.0"), 	g_cvars[REVIVAL_TIME]);
+	bind_pcvar_float(create_cvar("rkit_delay_revive", 		"3.0"), 	g_cvars[REVIVAL_TIME]);
+	bind_pcvar_float(create_cvar("rkit_delay_die", 			"120.0"), 	g_cvars[REVIVAL_DEATH_TIME]);
 	bind_pcvar_float(create_cvar("rkit_distance", 			"70.0"), 	g_cvars[REVIVAL_DISTANCE]);
 	bind_pcvar_float(create_cvar("rkit_screen_fade_time", 	"2.0"), 	g_cvars[REVIVAL_SC_FADE_TIME]);
 
-	RegisterHam(Ham_TakeDamage,			ENTITY_CLASS_NAME[PLAYER],	"PlayerTakeDamage");
+	RegisterHam(Ham_Killed,				ENTITY_CLASS_NAME[PLAYER],	"PlayerKilled");
 	RegisterHam(Ham_Player_PostThink,	ENTITY_CLASS_NAME[PLAYER],	"PlayerPostThink");
 	RegisterHam(Ham_Touch,				ENTITY_CLASS_NAME[I_TARGET],"RKitTouch");
+
+	register_message(g_msg_data	[MSG_CLCORPSE], "message_clcorpse");
+
 
 	g_msg_data	[MSG_BARTIME]		= get_user_msgid("BarTime");
 	g_msg_data	[MSG_CLCORPSE]		= get_user_msgid("ClCorpse");
 	g_msg_data	[MSG_SCREEN_FADE]	= get_user_msgid("ScreenFade");
 	g_msg_data	[MSG_STATUS_ICON]	= get_user_msgid("StatusIcon");
+	g_sync_obj = CreateHudSyncObj();
 }
 
 public cmdBuyRKit(id)
@@ -174,29 +185,59 @@ public cmdBuyRKit(id)
 	return PLUGIN_HANDLED;
 }
 
-public PlayerTakeDamage(iVictim, inflictor, iAttacker, Float:fDamage, bit_Damage)
+public PlayerKilled(iVictim, iAttacker)
 {
-	if (float(get_user_health(iVictim)) - fDamage <= 0.0)
+	player_reset(iVictim);
+	if(g_player_data[iVictim][HAS_KIT])
 	{
-		player_reset(iVictim);
-		if(g_player_data[iVictim][HAS_KIT])
-		{
-			g_player_data[iVictim][HAS_KIT] = false;
-			drop_rkit(iVictim);
-		}
-
-		static Float:minsize[3];
-		pev(iVictim, pev_mins, minsize);
-
-		if(minsize[2] == -18.0)
-			g_player_data[iVictim][WAS_DUCKING] = true;
-		else
-			g_player_data[iVictim][WAS_DUCKING] = false;
-		
-		create_fake_corpse(iVictim);
-		return HAM_SUPERCEDE;
+		g_player_data[iVictim][HAS_KIT] = false;
+		drop_rkit(iVictim);
 	}
-	return HAM_IGNORED;
+
+	static Float:minsize[3];
+	pev(iVictim, pev_mins, minsize);
+
+	if(minsize[2] == -18.0)
+		g_player_data[iVictim][WAS_DUCKING] = true;
+	else
+		g_player_data[iVictim][WAS_DUCKING] = false;
+		
+	create_fake_corpse(iVictim);
+	g_player_data[iVictim][DEAD_LINE] = get_gametime();
+
+	set_task_ex(0.1, "PlayerDie", TASKID_DIE_COUNT + iVictim, _, _, SetTaskFlags:SetTask_Repeat);
+
+	return HAM_SUPERCEDE;
+}
+
+public PlayerDie(taskid)
+{
+	new id = taskid - TASKID_DIE_COUNT;
+	new Float:time = (get_gametime() - g_player_data[id][DEAD_LINE]) / 1000.0;
+	new Float:remaining = 0.0;
+	if (time < g_cvars[REVIVAL_DEATH_TIME])
+	{
+		remaining = g_cvars[REVIVAL_DEATH_TIME] - time;
+		set_hudmessage(255, 50, 100, -1.00, -1.00, .effects= 0 , .holdtime= 0.1);
+		ShowSyncHudMsg(id, g_sync_obj, "Possible resurrection time remaining: ^n%02d:%02d", floatround(remaining / 60), (floatround(remaining) % 60));
+	}
+	else
+	{
+		user_silentkill(id, 1);
+	}
+}
+
+public message_clcorpse()	
+	return PLUGIN_HANDLED;
+
+public PlayerPostThink(id)
+{
+
+}
+
+public RKitTouch(id)
+{
+
 }
 
 stock create_fake_corpse(id)
@@ -248,15 +289,18 @@ stock create_fake_corpse(id)
 
 stock player_reset(id)
 {
-	remove_task(TASKID_REVIVE  + id);
+	remove_task(TASKID_DIE_COUNT + id);
+
 	remove_task(TASKID_RESPAWN + id);
 	remove_task(TASKID_CHECKRE + id);
 	remove_task(TASKID_CHECKST + id);
 	remove_task(TASKID_ORIGIN  + id);
 	remove_task(TASKID_SETUSER + id);
 	
-	show_bartime(id, 0);
+	// if (is_user_alive(id))
+	// show_bartime(id, 0);
 
+	g_player_data[id][DEAD_LINE]	= 0.0;
 	g_player_data[id][REVIVE_DELAY] = 0.0;
 	g_player_data[id][WAS_DUCKING]	= false;
 	g_player_data[id][BODY_ORIGIN]	= Float:{0, 0, 0};
@@ -267,10 +311,12 @@ stock show_bartime(id, seconds)
 	if(is_user_bot(id))
 		return;
 	
-	message_begin(MSG_ONE, g_msg_data[MSG_BARTIME], _, id);
-	write_byte(seconds);
-	write_byte(0);
-	message_end();
+	if (pev_valid(id))
+	{
+		message_begin(MSG_ONE_UNRELIABLE, g_msg_data[MSG_BARTIME], {0.0,0.0,0.0}, id);
+		write_short(seconds);
+		message_end();
+	}
 }
 
 stock drop_rkit(id)
