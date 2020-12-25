@@ -146,26 +146,25 @@ public plugin_precache()
 //====================================================
 public plugin_init()
 {
-	register_plugin	(PLUGIN_NAME, PLUGIN_VERSION, PLUGIN_AUTHOR);
-	register_cvar	(PLUGIN_NAME, PLUGIN_VERSION, FCVAR_SPONLY|FCVAR_SERVER);
+	register_plugin		(PLUGIN_NAME, PLUGIN_VERSION, PLUGIN_AUTHOR);
+	register_cvar		(PLUGIN_NAME, PLUGIN_VERSION, FCVAR_SPONLY|FCVAR_SERVER);
 
-	register_clcmd	("say /buyrkit", 	"CmdBuyRKit");
-	register_clcmd	("buyrkit", 		"CmdBuyRKit");
+	register_clcmd		("say /buyrkit", 	"CmdBuyRKit");
+	register_clcmd		("buyrkit", 		"CmdBuyRKit");
 
-	bind_pcvar_num	(create_cvar("rkit_health", 			"75"), 		g_cvars[REVIVAL_HEALTH]);
-	bind_pcvar_num	(create_cvar("rkit_cost", 				"1200"), 	g_cvars[REVIVAL_COST]);
-	bind_pcvar_num	(create_cvar("rkit_screen_fade",		"1"), 		g_cvars[REVIVAL_SC_FADE]);
-	bind_pcvar_float(create_cvar("rkit_delay_revive", 		"3.0"), 	g_cvars[REVIVAL_TIME]);
-	bind_pcvar_float(create_cvar("rkit_delay_die", 			"120.0"), 	g_cvars[REVIVAL_DEATH_TIME]);
-	bind_pcvar_float(create_cvar("rkit_distance", 			"70.0"), 	g_cvars[REVIVAL_DISTANCE]);
-	bind_pcvar_float(create_cvar("rkit_screen_fade_time", 	"2.0"), 	g_cvars[REVIVAL_SC_FADE_TIME]);
+	bind_pcvar_num		(create_cvar("rkit_health", 			"75"), 		g_cvars[REVIVAL_HEALTH]);
+	bind_pcvar_num		(create_cvar("rkit_cost", 				"1200"), 	g_cvars[REVIVAL_COST]);
+	bind_pcvar_num		(create_cvar("rkit_screen_fade",		"1"), 		g_cvars[REVIVAL_SC_FADE]);
+	bind_pcvar_float	(create_cvar("rkit_delay_revive", 		"3.0"), 	g_cvars[REVIVAL_TIME]);
+	bind_pcvar_float	(create_cvar("rkit_delay_die", 			"120.0"), 	g_cvars[REVIVAL_DEATH_TIME]);
+	bind_pcvar_float	(create_cvar("rkit_distance", 			"70.0"), 	g_cvars[REVIVAL_DISTANCE]);
+	bind_pcvar_float	(create_cvar("rkit_screen_fade_time", 	"2.0"), 	g_cvars[REVIVAL_SC_FADE_TIME]);
 
-	RegisterHam(Ham_Killed,				ENTITY_CLASS_NAME[PLAYER],	"PlayerKilled");
-	RegisterHam(Ham_Player_PostThink,	ENTITY_CLASS_NAME[PLAYER],	"PlayerPostThink");
-	RegisterHam(Ham_Touch,				ENTITY_CLASS_NAME[I_TARGET],"RKitTouch");
-	register_event("HLTV", 	"RoundStart", "a", "1=0", "2=0");
-	register_message(g_msg_data	[MSG_CLCORPSE], "message_clcorpse");
-
+	RegisterHam			(Ham_Touch,	ENTITY_CLASS_NAME[I_TARGET],"RKitTouch");
+	RegisterHamPlayer	(Ham_Killed,							"PlayerKilled");
+	RegisterHamPlayer	(Ham_Player_PostThink,					"PlayerPostThink");
+	register_event_ex	("HLTV", 								"RoundStart", RegisterEvent_Global, "1=0", "2=0");
+	register_message 	(g_msg_data[MSG_CLCORPSE],				"message_clcorpse");
 
 	g_msg_data	[MSG_BARTIME]		= get_user_msgid("BarTime");
 	g_msg_data	[MSG_CLCORPSE]		= get_user_msgid("ClCorpse");
