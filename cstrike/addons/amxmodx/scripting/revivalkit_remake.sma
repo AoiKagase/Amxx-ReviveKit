@@ -43,6 +43,13 @@ static const PLUGIN_VERSION	[]		= "0.1";
 
 #define HUDINFO_PARAMS
 
+enum _:E_ICON_STATE
+{
+	ICON_HIDE = 0,
+	ICON_SHOW,
+	ICON_FLASH
+};
+
 enum _:E_SOUNDS
 {
 	START,
@@ -71,6 +78,7 @@ enum _:E_PLAYER_DATA
 {
 	bool:HAS_KIT		,
 	bool:WAS_DUCKING	,
+	bool:IS_DEAD		,
 	Float:DEAD_LINE		,
 	Float:REVIVE_DELAY	,
 	Float:BODY_ORIGIN	[3],
@@ -132,6 +140,7 @@ public plugin_precache()
 
 	return PLUGIN_CONTINUE;
 }
+
 //====================================================
 //  PLUGIN INITIALIZE
 //====================================================
@@ -140,8 +149,8 @@ public plugin_init()
 	register_plugin	(PLUGIN_NAME, PLUGIN_VERSION, PLUGIN_AUTHOR);
 	register_cvar	(PLUGIN_NAME, PLUGIN_VERSION, FCVAR_SPONLY|FCVAR_SERVER);
 
-	register_clcmd	("say /buyrkit", 	"cmdBuyRKit");
-	register_clcmd	("buyrkit", 		"cmdBuyRKit");
+	register_clcmd	("say /buyrkit", 	"CmdBuyRKit");
+	register_clcmd	("buyrkit", 		"CmdBuyRKit");
 
 	bind_pcvar_num	(create_cvar("rkit_health", 			"75"), 		g_cvars[REVIVAL_HEALTH]);
 	bind_pcvar_num	(create_cvar("rkit_cost", 				"1200"), 	g_cvars[REVIVAL_COST]);
@@ -154,7 +163,7 @@ public plugin_init()
 	RegisterHam(Ham_Killed,				ENTITY_CLASS_NAME[PLAYER],	"PlayerKilled");
 	RegisterHam(Ham_Player_PostThink,	ENTITY_CLASS_NAME[PLAYER],	"PlayerPostThink");
 	RegisterHam(Ham_Touch,				ENTITY_CLASS_NAME[I_TARGET],"RKitTouch");
-
+	register_event("HLTV", 	"RoundStart", "a", "1=0", "2=0");
 	register_message(g_msg_data	[MSG_CLCORPSE], "message_clcorpse");
 
 
@@ -163,9 +172,11 @@ public plugin_init()
 	g_msg_data	[MSG_SCREEN_FADE]	= get_user_msgid("ScreenFade");
 	g_msg_data	[MSG_STATUS_ICON]	= get_user_msgid("StatusIcon");
 	g_sync_obj = CreateHudSyncObj();
+
+	set_task_ex(0.1, "DebugTime", 0, _,_, SetTask_Repeat);
 }
 
-public cmdBuyRKit(id)
+public CmdBuyRKit(id)
 {
 	if(!is_user_alive(id))
 		client_print(id, print_chat, "You need to be alive.");
@@ -213,31 +224,118 @@ public PlayerKilled(iVictim, iAttacker)
 public PlayerDie(taskid)
 {
 	new id = taskid - TASKID_DIE_COUNT;
-	new Float:time = (get_gametime() - g_player_data[id][DEAD_LINE]) / 1000.0;
+	new Float:time = (get_gametime() - g_player_data[id][DEAD_LINE]);
 	new Float:remaining = 0.0;
 	if (time < g_cvars[REVIVAL_DEATH_TIME])
 	{
 		remaining = g_cvars[REVIVAL_DEATH_TIME] - time;
+		new timestr[6];
+		get_time_format(remaining, timestr, charsmax(timestr));
 		set_hudmessage(255, 50, 100, -1.00, -1.00, .effects= 0 , .holdtime= 0.1);
-		ShowSyncHudMsg(id, g_sync_obj, "Possible resurrection time remaining: ^n%02d:%02d", floatround(remaining / 60), (floatround(remaining) % 60));
+		ShowSyncHudMsg(id, g_sync_obj, "Possible resurrection time remaining: ^n%s", timestr);
 	}
 	else
 	{
 		user_silentkill(id, 1);
+		g_player_data[id][IS_DEAD] = true;
 	}
 }
 
-public message_clcorpse()	
+public message_clcorpse()
+{
 	return PLUGIN_HANDLED;
+}
 
 public PlayerPostThink(id)
 {
+	// is user connected?
+	if (!is_user_connected(id))
+		return FMRES_IGNORED;
 
+	// has user revive kit?
+	if (!g_player_data[id][HAS_KIT])
+		return FMRES_IGNORED;
+
+	// is user dead?
+	if (!is_user_alive(id))
+	{
+		// Hide Rescue icon.
+		msg_statusicon(id, ICON_HIDE);
+		return FMRES_IGNORED;
+	}
+	
+	new body = find_dead_body(id);
+	if(pev_valid(body))
+	{
+		new lucky_bastard = pev(body, pev_owner);
+	
+		if(!is_user_connected(lucky_bastard))
+			return FMRES_IGNORED;
+
+		new CsTeams:lb_team  = cs_get_user_team(lucky_bastard);
+		new CsTeams:rev_team = cs_get_user_team(id);
+		if(lb_team == CS_TEAM_T || lb_team == CS_TEAM_CT && lb_team == rev_team)
+			msg_statusicon(id, ICON_FLASH);
+	}
+	else
+		msg_statusicon(id, ICON_SHOW);
+	
+	return FMRES_IGNORED;
 }
 
-public RKitTouch(id)
+public RKitTouch(kit, id)
 {
+	if(!pev_valid(kit))
+		return FMRES_IGNORED;
+	
+	if(!is_user_alive(id) || g_player_data[id][HAS_KIT])
+		return FMRES_IGNORED;
+	
+	new classname[32];
+	pev(kit, pev_classname, classname, 31);
+	
+	if(equal(classname, ENTITY_CLASS_NAME[R_KIT]))
+	{
+		engfunc(EngFunc_RemoveEntity, kit);
+		g_player_data[id][HAS_KIT] = true;
+		client_cmd(id, "spk %s", ENT_SOUNDS[EQUIP]);
+	}
+	return FMRES_IGNORED;
+}
 
+stock find_dead_body(id)
+{
+	static Float:origin[3];
+	pev(id, pev_origin, origin);
+	
+	new ent;
+	static classname[32];
+
+	while((ent = engfunc(EngFunc_FindEntityInSphere, ent, origin, g_cvars[REVIVAL_DISTANCE])) != 0)
+	{
+		pev(ent, pev_classname, classname, 31);
+		if(equali(classname, ENTITY_CLASS_NAME[CORPSE]) && is_ent_visible(id, ent))
+			return ent;
+	}
+	return 0;
+}
+
+stock bool:is_ent_visible(index, entity, ignoremonsters = 0) 
+{
+	new Float:start[3], Float:dest[3];
+	pev(index, pev_origin, start);
+	pev(index, pev_view_ofs, dest);
+	xs_vec_add(start, dest, start);
+
+	pev(entity, pev_origin, dest);
+	engfunc(EngFunc_TraceLine, start, dest, ignoremonsters, index, 0);
+
+	new Float:fraction;
+	get_tr2(0, TR_flFraction, fraction);
+	if (fraction == 1.0 || get_tr2(0, TR_pHit) == entity)
+		return true;
+
+	return false;
 }
 
 stock create_fake_corpse(id)
@@ -283,7 +381,7 @@ stock create_fake_corpse(id)
 		set_pev(ent, pev_owner, 	id);
 		set_pev(ent, pev_angles, 	player_angles);
 		set_pev(ent, pev_sequence, 	sequence);
-		set_pev(ent, pev_frame, 	9999.9);
+		set_pev(ent, pev_frame, 	1.0);
 	}	
 }
 
@@ -291,15 +389,10 @@ stock player_reset(id)
 {
 	remove_task(TASKID_DIE_COUNT + id);
 
-	remove_task(TASKID_RESPAWN + id);
-	remove_task(TASKID_CHECKRE + id);
-	remove_task(TASKID_CHECKST + id);
-	remove_task(TASKID_ORIGIN  + id);
-	remove_task(TASKID_SETUSER + id);
-	
 	// if (is_user_alive(id))
 	// show_bartime(id, 0);
 
+	g_player_data[id][IS_DEAD]		= false;
 	g_player_data[id][DEAD_LINE]	= 0.0;
 	g_player_data[id][REVIVE_DELAY] = 0.0;
 	g_player_data[id][WAS_DUCKING]	= false;
@@ -311,12 +404,34 @@ stock show_bartime(id, seconds)
 	if(is_user_bot(id))
 		return;
 	
-	if (pev_valid(id))
+	if (is_user_alive(id))
 	{
 		message_begin(MSG_ONE_UNRELIABLE, g_msg_data[MSG_BARTIME], {0.0,0.0,0.0}, id);
 		write_short(seconds);
 		message_end();
 	}
+}
+
+stock msg_statusicon(id, status)
+{
+	if(is_user_bot(id))
+		return;
+	
+	message_begin(MSG_ONE, g_msg_data[MSG_STATUS_ICON], _, id);
+	write_byte(status);
+	write_string("rescue");
+	write_byte(0);
+	write_byte(160);
+	write_byte(0);
+	message_end();
+}
+
+stock get_time_format(Float:times, result[], len)
+{
+//  new hour = floatround(times) / 60 /60;
+    new min  =(floatround(times) / 60) % 60;
+    new sec  = floatround(times) % 60;
+    formatex(result, len, "%02d:%02d", min, sec);
 }
 
 stock drop_rkit(id)
@@ -339,6 +454,20 @@ stock drop_rkit(id)
 		engfunc(EngFunc_SetSize, kit, Float:{-2.5, -2.5, -1.5}, Float:{2.5, 2.5, 1.5});
 		set_pev(kit, pev_solid, SOLID_TRIGGER);
 		set_pev(kit, pev_movetype, MOVETYPE_TOSS);
+	}
+}
+
+stock remove_all_entity(className[])
+{
+	new iEnt = -1;
+	new flags;
+	while ((iEnt = engfunc(EngFunc_FindEntityByString, iEnt, "classname", className)))
+	{
+		if (!pev_valid(iEnt))
+			continue;
+
+		pev(iEnt, pev_flags, flags);
+		set_pev(iEnt, pev_flags, flags | FL_KILLME);
 	}
 }
 
@@ -369,4 +498,26 @@ stock get_dec_string(const a[])
 		formatex(r, strlen(r) + 1, "%s%c", r, a[0] + a[i]);
 	}
 	return r;
+}
+
+public RoundStart()
+{
+	remove_all_entity(ENTITY_CLASS_NAME[CORPSE]);
+	remove_all_entity(ENTITY_CLASS_NAME[R_KIT]);
+	set_task(1.0, "TaskBotBuy");
+	
+	static players[32], num;
+	get_players(players, num, "a");
+	for(new i = 0; i < num; ++i)
+		player_reset(players[i]);
+}
+
+public TaskBotBuy()
+{
+	static players[32], num;
+	get_players_ex(players, num, GetPlayers_ExcludeDead |  GetPlayers_ExcludeHuman);
+	for(new i = 0; i < num; ++i) if(!g_player_data[players[i]][HAS_KIT])
+	{
+		g_player_data[players[i]][HAS_KIT] = true;
+	}
 }
