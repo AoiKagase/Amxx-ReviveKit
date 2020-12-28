@@ -18,7 +18,7 @@
 #pragma semicolon 					1
 #pragma tabsize 					4
 
-static const PLUGIN_NAME	[] 		= "Revival Kit";
+static const PLUGIN_NAME	[] 		= "Revival Kit / Remastered";
 static const PLUGIN_AUTHOR	[] 		= "Aoi.Kagase";
 static const PLUGIN_VERSION	[]		= "0.1";
 
@@ -261,17 +261,18 @@ public PlayerKilled(iVictim, iAttacker)
 	return HAM_IGNORED;
 }
 
+#define GUAGE_MAX 30
 public PlayerDie(taskid)
 {
 	new id = taskid - TASKID_DIE_COUNT;
 	new Float:time = (get_gametime() - g_player_data[id][DEAD_LINE]);
 	new Float:remaining = 0.0;
-	new bar[31] = "";
+	new bar[30] = "";
 	if (!is_user_alive(id))
 	if (time < g_cvars[REVIVAL_DEATH_TIME])
 	{
 		remaining = g_cvars[REVIVAL_DEATH_TIME] - time;
-		show_time_bar(id, floatround(30.0 / g_cvars[REVIVAL_DEATH_TIME]) * floatround(remaining), bar);
+		show_time_bar(float(GUAGE_MAX) / 100.0, floatround((remaining / float(g_cvars[REVIVAL_DEATH_TIME])), floatround_floor), bar);
 		new timestr[6];
 		get_time_format(remaining, timestr, charsmax(timestr));
 		set_hudmessage(255, 50, 100, -1.00, -1.00, .effects= 0 , .holdtime= 0.1);
@@ -286,17 +287,10 @@ public PlayerDie(taskid)
 		remove_task(taskid);
 }
 
-stock show_time_bar(id, percent, bar[])
+stock show_time_bar(Float:oneper, percent, bar[])
 {
-	formatex(bar, 30, "||||||||||||||||||||||||||||||");
-	static oldpercent[33];
-
-	if (oldpercent[id] != percent)
-	{
-		for(new i = g_cvars[REVIVAL_DEATH_TIME]; i > percent; --i)
-			bar[i] = ' ';
-	}
-	oldpercent[id] = percent;
+	for(new i = 0; i < 30; i++)
+		bar[i] = ((i * oneper) < percent) ? '|' : ' ';
 }
 
 public message_clcorpse()
