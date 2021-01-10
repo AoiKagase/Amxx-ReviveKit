@@ -377,8 +377,11 @@ public PlayerCmdStart(id, handle, random_seed)
 	{
 		if (!iInOldButton)
 		{
-			wait_revive(id);
-			return FMRES_HANDLED;
+			if (g_player_data[id][HAS_KIT])
+			{
+				wait_revive(id);
+				return FMRES_HANDLED;
+			}
 		}
 	}
 	else
