@@ -267,12 +267,12 @@ public PlayerDie(taskid)
 	new id = taskid - TASKID_DIE_COUNT;
 	new Float:time = (get_gametime() - g_player_data[id][DEAD_LINE]);
 	new Float:remaining = 0.0;
-	new bar[30] = "";
+	new bar[31] = "";
 	if (!is_user_alive(id))
 	if (time < g_cvars[REVIVAL_DEATH_TIME])
 	{
 		remaining = g_cvars[REVIVAL_DEATH_TIME] - time;
-		show_time_bar(float(GUAGE_MAX) / 100.0, floatround((remaining / float(g_cvars[REVIVAL_DEATH_TIME])), floatround_floor), bar);
+		show_time_bar(100 / GUAGE_MAX, floatround(remaining * 100.0 / float(g_cvars[REVIVAL_DEATH_TIME]), floatround_ceil), bar);
 		new timestr[6];
 		get_time_format(remaining, timestr, charsmax(timestr));
 		set_hudmessage(255, 50, 100, -1.00, -1.00, .effects= 0 , .holdtime= 0.1);
@@ -287,10 +287,11 @@ public PlayerDie(taskid)
 		remove_task(taskid);
 }
 
-stock show_time_bar(Float:oneper, percent, bar[])
+stock show_time_bar(oneper, percent, bar[])
 {
 	for(new i = 0; i < 30; i++)
-		bar[i] = ((i * oneper) < percent) ? '|' : ' ';
+		bar[i] = ((i * oneper) < percent) ? '|' : '_';
+	bar[30] = '^0';
 }
 
 public message_clcorpse()
