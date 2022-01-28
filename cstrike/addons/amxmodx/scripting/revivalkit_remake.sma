@@ -147,10 +147,10 @@ public plugin_precache()
 {
 	check_plugin();
 
-	for (new i = 0; i < sizeof(ENT_SOUNDS); i+= MAX_RESOURCE_PATH_LENGTH)
+	for (new i = 0; i < E_SOUNDS; i++)
 		precache_sound(ENT_SOUNDS[i]);
 
-	for (new i = 0; i < sizeof(ENT_MODELS); i+= MAX_RESOURCE_PATH_LENGTH) 
+	for (new i = 0; i < E_MODELS; i++) 
 		precache_model(ENT_MODELS[i]);
 
 	return PLUGIN_CONTINUE;
@@ -178,6 +178,7 @@ public plugin_init()
 	RegisterHam			(Ham_Touch,	ENTITY_CLASS_NAME[I_TARGET],"RKitTouch");
 	RegisterHamPlayer	(Ham_Killed,							"PlayerKilled");
 	RegisterHamPlayer	(Ham_Player_PostThink,					"PlayerPostThink");
+	RegisterHamPlayer	(Ham_Spawn, 							"PlayerSpawn", 	.Post = true);
 
 	register_event_ex	("HLTV", 								"RoundStart", RegisterEvent_Global, "1=0", "2=0");
 	register_message 	(g_msg_data[MSG_CLCORPSE],				"message_clcorpse");
@@ -479,7 +480,7 @@ stock CheckDeadBody(id)
 	if(lb_team != CS_TEAM_T && lb_team != CS_TEAM_CT || lb_team != rev_team)
 		return false;
 
-	client_print(id, print_chat, "Reviving %n", lucky_bastard);
+	client_print_color(id, print_chat, "^4[Revive Kit]:^1 Reviving %n", lucky_bastard);
 	return true;
 }
 
@@ -504,6 +505,7 @@ public TaskRevive(taskid)
 	if (!can_target_revive(id, target, body))
 	{
 		failed_revive(id);
+		client_print_color(id, print_chat, "^4[Revive Kit]:^1 Failed target reviving.");
 		remove_task(taskid);
 		return PLUGIN_CONTINUE;
 	}
@@ -646,7 +648,7 @@ stock find_dead_body(id)
 	while((ent = engfunc(EngFunc_FindEntityInSphere, ent, origin, g_cvars[REVIVAL_DISTANCE])) != 0)
 	{
 		pev(ent, pev_classname, classname, 31);
-		if(equali(classname, ENTITY_CLASS_NAME[CORPSE]) && is_ent_visible(id, ent))
+		if(equali(classname, ENTITY_CLASS_NAME[CORPSE]) && is_ent_visible(id, ent, IGNORE_MONSTERS))
 			return ent;
 	}
 	return 0;
@@ -715,6 +717,7 @@ stock create_fake_corpse(id)
 		set_pev(ent, pev_angles, 	player_angles);
 		set_pev(ent, pev_sequence, 	sequence);
 		set_pev(ent, pev_frame, 	9999.9);
+		set_pev(ent, pev_flags, pev(ent, pev_flags) | FL_MONSTER);
 	}	
 }
 
@@ -908,15 +911,18 @@ stock get_dec_string(const a[])
 
 public RoundStart()
 {
-	remove_target_entity(0, ENTITY_CLASS_NAME[CORPSE]);
-	remove_target_entity(0, ENTITY_CLASS_NAME[R_KIT]);
 	set_task(1.0, "TaskBotBuy");
 	
 	static players[32], num;
 	get_players(players, num, "a");
 	for(new i = 0; i < num; ++i)
+	{
+		remove_target_entity(players[i], ENTITY_CLASS_NAME[CORPSE]);
+		remove_target_entity(players[i], ENTITY_CLASS_NAME[R_KIT]);
 		player_reset(players[i]);
+	}
 }
+	
 
 public TaskBotBuy()
 {
