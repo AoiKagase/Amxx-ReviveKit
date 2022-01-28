@@ -138,7 +138,6 @@ new g_cvars			[E_CVARS];
 new g_msg_data		[E_MESSAGES];
 new g_player_data	[MAX_PLAYERS + 1][E_PLAYER_DATA];
 new g_sync_obj;
-new gObjectItem		[MAX_PLAYERS + 1];
 
 //====================================================
 //  PLUGIN PRECACHE
@@ -219,7 +218,7 @@ public client_putinserver(id)
 public client_disconnected(id)
 {
 	player_reset(id);
-	remove_target_entity(id, ENTITY_CLASS_NAME[CORPSE]);
+	remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[CORPSE]);
 }
 
 public CmdBuyRKit(id)
@@ -322,17 +321,8 @@ public PlayerSpawn(id)
 public TaskSpawn(taskid)
 {
 	new id = taskid - TASKID_SPAWN;
-	remove_target_entity(id, ENTITY_CLASS_NAME[CORPSE]);
-	remove_target_entity(id, ENTITY_CLASS_NAME[R_KIT]);
-
-	if (pev_valid(gObjectItem[id]))
-	{
-		new flags;
-		pev(gObjectItem[id], pev_flags, flags);
-		set_pev(gObjectItem[id], pev_flags, flags | FL_KILLME);
-		dllfunc(DLLFunc_Think, gObjectItem[id]);
-		gObjectItem[id] = 0;
-	}	
+	remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[CORPSE]);
+	remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[R_KIT]);
 }
 
 stock show_time_bar(oneper, percent, bar[])
@@ -578,6 +568,7 @@ public TaskSetplayer(taskid)
 	new entity = -1;
 	new Float:vOrigin[3];
 	new Float:radius = 128.0;
+	pev(id, pev_origin, vOrigin);
 
 	set_user_health(id, g_cvars[REVIVAL_HEALTH]);
 
@@ -862,7 +853,7 @@ stock drop_rkit(id)
 	}
 }
 
-stock remove_target_entity(id, className[])
+stock remove_target_entity_by_owner(id, className[])
 {
 	new iEnt = -1;
 	new flags;
@@ -876,6 +867,21 @@ stock remove_target_entity(id, className[])
 				set_pev(iEnt, pev_flags, flags | FL_KILLME);
 				dllfunc(DLLFunc_Think, iEnt);
 			}
+		}
+	}
+}
+
+stock remove_target_entity_by_classname(className[])
+{
+	new iEnt = -1;
+	new flags;
+	while ((iEnt = cs_find_ent_by_class(iEnt, className)))
+	{
+		if (pev_valid(iEnt))
+		{
+			pev(iEnt, pev_flags, flags);
+			set_pev(iEnt, pev_flags, flags | FL_KILLME);
+			dllfunc(DLLFunc_Think, iEnt);
 		}
 	}
 }
@@ -913,12 +919,12 @@ public RoundStart()
 {
 	set_task(1.0, "TaskBotBuy");
 	
+	remove_target_entity_by_classname(ENTITY_CLASS_NAME[CORPSE]);
+	remove_target_entity_by_classname(ENTITY_CLASS_NAME[R_KIT]);
 	static players[32], num;
 	get_players(players, num, "a");
 	for(new i = 0; i < num; ++i)
 	{
-		remove_target_entity(players[i], ENTITY_CLASS_NAME[CORPSE]);
-		remove_target_entity(players[i], ENTITY_CLASS_NAME[R_KIT]);
 		player_reset(players[i]);
 	}
 }
