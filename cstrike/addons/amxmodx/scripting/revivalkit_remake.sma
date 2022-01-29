@@ -69,13 +69,18 @@ enum _:E_MODELS
 
 enum _:E_CVARS
 {
-	REVIVAL_HEALTH,
-	REVIVAL_COST,
-	REVIVAL_SC_FADE,
-	REVIVAL_TIME,
-	REVIVAL_SC_FADE_TIME,
-	REVIVAL_DEATH_TIME,
-	Float:REVIVAL_DISTANCE,
+	RKIT_HEALTH,
+	RKIT_COST,
+	RKIT_SC_FADE,
+	RKIT_TIME,
+	RKIT_SC_FADE_TIME,
+	RKIT_DEATH_TIME,
+	RKIT_DM_MODE,
+	RKIT_BOT_HAS_KIT,
+	RKIT_BOT_CAN_REVIVE,
+	RKIT_BUYMODE,
+	RKIT_BUYZONE,
+	Float:RKIT_DISTANCE,
 };
 
 enum _:E_PLAYER_DATA
@@ -166,14 +171,18 @@ public plugin_init()
 	register_clcmd		("say /buyrkit", 	"CmdBuyRKit");
 	register_clcmd		("buyrkit", 		"CmdBuyRKit");
 
-	bind_pcvar_num		(create_cvar("rkit_health", 			"75"), 		g_cvars[REVIVAL_HEALTH]);
-	bind_pcvar_num		(create_cvar("rkit_cost", 				"1200"), 	g_cvars[REVIVAL_COST]);
-	bind_pcvar_num		(create_cvar("rkit_screen_fade",		"1"), 		g_cvars[REVIVAL_SC_FADE]);
-	bind_pcvar_num		(create_cvar("rkit_delay_revive", 		"3"), 		g_cvars[REVIVAL_TIME]);
-	bind_pcvar_num		(create_cvar("rkit_delay_die", 			"30"), 		g_cvars[REVIVAL_DEATH_TIME]);
-	bind_pcvar_num		(create_cvar("rkit_screen_fade_time", 	"2"), 		g_cvars[REVIVAL_SC_FADE_TIME]);
-	bind_pcvar_float	(create_cvar("rkit_distance", 			"70.0"), 	g_cvars[REVIVAL_DISTANCE]);
-
+	bind_pcvar_num		(create_cvar("rkit_health", 			"75"), 		g_cvars[RKIT_HEALTH]);
+	bind_pcvar_num		(create_cvar("rkit_cost", 				"1200"), 	g_cvars[RKIT_COST]);
+	bind_pcvar_num		(create_cvar("rkit_screen_fade",		"1"), 		g_cvars[RKIT_SC_FADE]);
+	bind_pcvar_num		(create_cvar("rkit_delay_revive", 		"3"), 		g_cvars[RKIT_TIME]);
+	bind_pcvar_num		(create_cvar("rkit_delay_die", 			"30"), 		g_cvars[RKIT_DEATH_TIME]);
+	bind_pcvar_num		(create_cvar("rkit_screen_fade_time", 	"2"), 		g_cvars[RKIT_SC_FADE_TIME]);
+	bind_pcvar_float	(create_cvar("rkit_distance", 			"70.0"), 	g_cvars[RKIT_DISTANCE]);
+	bind_pcvar_num		(create_cvar("rkit_deathmatch",			"0"),		g_cvars[RKIT_DM_MODE]);
+	bind_pcvar_num		(create_cvar("rkit_bot_has_kit",		"1"),		g_cvars[RKIT_BOT_HAS_KIT]);
+	bind_pcvar_num		(create_cvar("rkit_bot_can_revive",		"1"),		g_cvars[RKIT_BOT_CAN_REVIVE]);
+	bind_pcvar_num		(create_cvar("rkit_buy_mode",			"1"),		g_cvars[RKIT_BUYMODE]);
+	bind_pcvar_num		(create_cvar("rkit_buy_zone",			"1"),		g_cvars[RKIT_BUYZONE]);
 	RegisterHam			(Ham_Touch,	ENTITY_CLASS_NAME[I_TARGET],"RKitTouch");
 	RegisterHamPlayer	(Ham_Killed,							"PlayerKilled");
 	RegisterHamPlayer	(Ham_Player_PostThink,					"PlayerPostThink");
@@ -211,7 +220,10 @@ public register_bots( id )
 
 public client_putinserver(id)
 {
-	g_player_data[id][HAS_KIT] = false;
+	if (g_cvars[RKIT_BUYMODE] == 0)
+		g_player_data[id][HAS_KIT] = true;
+	else
+		g_player_data[id][HAS_KIT] = false;
 	player_reset(id);
 }
 
@@ -223,19 +235,25 @@ public client_disconnected(id)
 
 public CmdBuyRKit(id)
 {
+	if (!g_cvars[RKIT_BUYMODE])
+	{
+		client_print_color(id, print_chat, "^4[Revive Kit]:^1 You can't buy in this mode. You already have a revival kit.");
+		return PLUGIN_HANDLED;
+	}
+
 	if(!is_user_alive(id))
-		client_print(id, print_chat, "You need to be alive.");
+		client_print_color(id, print_chat, "^4[Revive Kit]:^1 You need to be alive.");
 	else if(g_player_data[id][HAS_KIT])
-		client_print(id, print_chat, "You already have a revival kit.");
-	else if(!cs_get_user_buyzone(id))
-		client_print(id, print_chat, "You need to be in the buyzone.");
-	else if(cs_get_user_money(id) < g_cvars[REVIVAL_COST])
-		client_print(id, print_chat, "You dont have enough money (Cost:$%d)", g_cvars[REVIVAL_COST]);
+		client_print_color(id, print_chat, "^4[Revive Kit]:^1 You already have a revival kit.");
+	else if(!cs_get_user_buyzone(id) && g_cvars[RKIT_BUYZONE])
+		client_print_color(id, print_chat, "^4[Revive Kit]:^1 You need to be in the buyzone.");
+	else if(cs_get_user_money(id) < g_cvars[RKIT_COST])
+		client_print_color(id, print_chat, "^4[Revive Kit]:^1 You dont have enough money (Cost:$%d)", g_cvars[RKIT_COST]);
 	else
 	{
 		g_player_data[id][HAS_KIT] = true;
-		cs_set_user_money(id, cs_get_user_money(id) - g_cvars[REVIVAL_COST]);
-		client_print(id, print_chat, "You bought a revival kit. Hold your +use key (E) to revive a teammate.");
+		cs_set_user_money(id, cs_get_user_money(id) - g_cvars[RKIT_COST]);
+		client_print_color(id, print_chat, "^4[Revive Kit]:^1 You bought a revival kit. Hold your +use key (E) to revive a teammate.");
 		client_cmd(id, "spk %s", ENT_SOUNDS[SOUND_EQUIP]);
 	}
 	return PLUGIN_HANDLED;
@@ -244,10 +262,19 @@ public CmdBuyRKit(id)
 public PlayerKilled(iVictim, iAttacker)
 {
 	player_reset(iVictim);
-	if(g_player_data[iVictim][HAS_KIT])
+	if (g_cvars[RKIT_BUYMODE])
 	{
-		g_player_data[iVictim][HAS_KIT] = false;
-		drop_rkit(iVictim);
+		if(g_player_data[iVictim][HAS_KIT])
+		{
+			g_player_data[iVictim][HAS_KIT] = false;
+			drop_rkit(iVictim);
+		}
+	}
+
+	if (is_user_bot(iVictim))
+	{
+		if (!g_cvars[RKIT_BOT_CAN_REVIVE])
+			return HAM_IGNORED;
 	}
 
 	static Float:minsize[3];
@@ -282,12 +309,12 @@ public PlayerDie(taskid)
 
 	if (!is_user_alive(id))
 	{
-		if (time < g_cvars[REVIVAL_DEATH_TIME])
+		if (time < g_cvars[RKIT_DEATH_TIME])
 		{
 			if (!is_user_bot(id))
 			{
-				remaining = g_cvars[REVIVAL_DEATH_TIME] - time;
-				show_time_bar(100 / GUAGE_MAX, floatround(remaining * 100.0 / float(g_cvars[REVIVAL_DEATH_TIME]), floatround_ceil), bar);
+				remaining = g_cvars[RKIT_DEATH_TIME] - time;
+				show_time_bar(100 / GUAGE_MAX, floatround(remaining * 100.0 / float(g_cvars[RKIT_DEATH_TIME]), floatround_ceil), bar);
 				new timestr[6];
 				get_time_format(remaining, timestr, charsmax(timestr));
 				set_hudmessage(255, 0, 0, -1.00, -1.00, .effects= 0 , .fxtime = 0.0, .holdtime = 1.0, .fadeintime = 0.0, .fadeouttime = 0.0, .channel = -1);
@@ -296,7 +323,11 @@ public PlayerDie(taskid)
 		}
 		else
 		{
-			ExecuteHamB(Ham_CS_RoundRespawn, id);
+			// deathmatch mode. auto respawn.
+			if(g_cvars[RKIT_DM_MODE])
+				ExecuteHamB(Ham_CS_RoundRespawn, id);
+			else
+				remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[CORPSE]);
 		}
 	}
 	else
@@ -323,6 +354,9 @@ public TaskSpawn(taskid)
 	new id = taskid - TASKID_SPAWN;
 	remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[CORPSE]);
 	remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[R_KIT]);
+
+	if (!g_cvars[RKIT_BUYMODE])
+		g_player_data[id][HAS_KIT] = true;
 }
 
 stock show_time_bar(oneper, percent, bar[])
@@ -445,11 +479,11 @@ public wait_revive(id)
 	if (!CheckDeadBody(id))
 		return FMRES_IGNORED;
 
-	if (g_cvars[REVIVAL_TIME] > 0.0)
-		show_progress(id, g_cvars[REVIVAL_TIME]);
+	if (g_cvars[RKIT_TIME] > 0.0)
+		show_progress(id, g_cvars[RKIT_TIME]);
 	
 	new Float:gametime = get_gametime();
-	g_player_data[id][REVIVE_DELAY] = (gametime + g_cvars[REVIVAL_TIME] - 0.01);
+	g_player_data[id][REVIVE_DELAY] = (gametime + g_cvars[RKIT_TIME] - 0.01);
 
 	emit_sound(id, CHAN_AUTO, ENT_SOUNDS[SOUND_START], VOL_NORM, ATTN_NORM, 0, PITCH_NORM);
 	set_task_ex(0.1, "TaskRevive", TASKID_REVIVING + id, _,_, SetTaskFlags:SetTask_Repeat);
@@ -570,12 +604,12 @@ public TaskSetplayer(taskid)
 	new Float:radius = 128.0;
 	pev(id, pev_origin, vOrigin);
 
-	set_user_health(id, g_cvars[REVIVAL_HEALTH]);
+	set_user_health(id, g_cvars[RKIT_HEALTH]);
 
 	if (!is_user_bot(id))
-	if (g_cvars[REVIVAL_SC_FADE])
+	if (g_cvars[RKIT_SC_FADE])
 	{
-		new sec = seconds(g_cvars[REVIVAL_SC_FADE_TIME]);
+		new sec = seconds(g_cvars[RKIT_SC_FADE_TIME]);
 		message_begin(MSG_ONE,g_msg_data[MSG_SCREEN_FADE], _, id);
 		write_short(sec);
 		write_short(sec);
@@ -593,7 +627,7 @@ public TaskSetplayer(taskid)
 		{
 			if(pev(entity, pev_owner) == id)
 			{
-				ExecuteHam(Ham_CS_Player_OnTouchingWeapon, id, entity);			
+				dllfunc(DLLFunc_Touch, entity, id);
 			}
 		}
 	}
@@ -636,7 +670,7 @@ stock find_dead_body(id)
 	new ent;
 	static classname[32];
 
-	while((ent = engfunc(EngFunc_FindEntityInSphere, ent, origin, g_cvars[REVIVAL_DISTANCE])) != 0)
+	while((ent = engfunc(EngFunc_FindEntityInSphere, ent, origin, g_cvars[RKIT_DISTANCE])) != 0)
 	{
 		pev(ent, pev_classname, classname, 31);
 		if(equali(classname, ENTITY_CLASS_NAME[CORPSE]) && is_ent_visible(id, ent, IGNORE_MONSTERS))
@@ -917,10 +951,12 @@ stock get_dec_string(const a[])
 
 public RoundStart()
 {
-	set_task(1.0, "TaskBotBuy");
+	if (g_cvars[RKIT_BOT_HAS_KIT])
+		set_task(1.0, "TaskBotBuy");
 	
 	remove_target_entity_by_classname(ENTITY_CLASS_NAME[CORPSE]);
 	remove_target_entity_by_classname(ENTITY_CLASS_NAME[R_KIT]);
+
 	static players[32], num;
 	get_players(players, num, "a");
 	for(new i = 0; i < num; ++i)
@@ -934,8 +970,9 @@ public TaskBotBuy()
 {
 	static players[32], num;
 	get_players_ex(players, num, GetPlayers_ExcludeDead |  GetPlayers_ExcludeHuman);
-	for(new i = 0; i < num; ++i) if(!g_player_data[players[i]][HAS_KIT])
+	for(new i = 0; i < num; ++i) 
 	{
-		g_player_data[players[i]][HAS_KIT] = true;
+		if(!g_player_data[players[i]][HAS_KIT])
+			g_player_data[players[i]][HAS_KIT] = true;
 	}
 }
