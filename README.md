@@ -17,3 +17,4 @@ https://forums.alliedmods.net/showthread.php?p=252625
 | `rkit_bot_can_revive` | 1 | Can revive the bot. 0 = no or 1 = yes.|
 | `rkit_buy_mode` | 1 | Need to buy a kit. 0 = already have one. 1 = yes.|
 | `rkit_buy_zone` | 1 | If `rkit_buy_mode` is 1, it can only be bought in the buy zone. 0 = no or 1 = yes.|
+| `rkit_deathmatch` | 0 | deathmatch mode. 0 = off or 1 = on |
