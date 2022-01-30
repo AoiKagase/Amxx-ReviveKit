@@ -2,7 +2,6 @@
 #include <amxmisc>
 #include <cstrike>
 #include <fun>
-#include <engine>
 #include <fakemeta>
 #include <hamsandwich>
 #include <xs>
@@ -21,6 +20,12 @@
 static const PLUGIN_NAME	[] 		= "Revival Kit / Remastered";
 static const PLUGIN_AUTHOR	[] 		= "Aoi.Kagase";
 static const PLUGIN_VERSION	[]		= "0.1";
+
+// ===================================================
+// SELF REVIVE COMMAND.
+// #define DEBUG_MODE
+// ===================================================
+
 
 #if !defined MAX_PLAYERS
 	#define  MAX_PLAYERS	          	32
@@ -41,7 +46,6 @@ static const PLUGIN_VERSION	[]		= "0.1";
 #define TASKID_ORIGIN 	            41560
 #define TASKID_SETUSER 	            41600
 #define TASKID_SPAWN				41650
-
 #define pev_zorigin					pev_fuser4
 #define seconds(%1) 				((1<<12) * (%1))
 
@@ -170,7 +174,9 @@ public plugin_init()
 
 	register_clcmd		("say /buyrkit", 	"CmdBuyRKit");
 	register_clcmd		("buyrkit", 		"CmdBuyRKit");
-
+	#if defined DEBUG_MODE
+	register_clcmd		("debugrkit",		"DebugRevive");
+	#endif
 	bind_pcvar_num		(create_cvar("rkit_health", 			"75"), 		g_cvars[RKIT_HEALTH]);
 	bind_pcvar_num		(create_cvar("rkit_cost", 				"1200"), 	g_cvars[RKIT_COST]);
 	bind_pcvar_num		(create_cvar("rkit_screen_fade",		"1"), 		g_cvars[RKIT_SC_FADE]);
@@ -218,6 +224,10 @@ public register_bots( id )
     }
 }
 
+// ====================================================
+// Client Connected.
+// Initialize Logic.
+// ====================================================
 public client_putinserver(id)
 {
 	if (g_cvars[RKIT_BUYMODE] == 0)
@@ -227,12 +237,19 @@ public client_putinserver(id)
 	player_reset(id);
 }
 
+// ====================================================
+// Client Disconnected.
+// Initialize and Remove Corpse.
+// ====================================================
 public client_disconnected(id)
 {
 	player_reset(id);
 	remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[CORPSE]);
 }
 
+// ====================================================
+// Buy RKit Chat command.
+// ====================================================
 public CmdBuyRKit(id)
 {
 	if (!g_cvars[RKIT_BUYMODE])
@@ -259,6 +276,12 @@ public CmdBuyRKit(id)
 	return PLUGIN_HANDLED;
 }
 
+// ====================================================
+// Player Killed.
+// + Drop Rkit
+// + Delay Die count start.
+// + Create Corpse.
+// ====================================================
 public PlayerKilled(iVictim, iAttacker)
 {
 	player_reset(iVictim);
@@ -293,6 +316,11 @@ public PlayerKilled(iVictim, iAttacker)
 	return HAM_IGNORED;
 }
 
+// ====================================================
+// Player Die Finelize.
+// + Show Delay Guage.
+// + Respawn or Remove corpse.
+// ====================================================
 #define GUAGE_MAX 30
 public PlayerDie(taskid)
 {
@@ -337,6 +365,11 @@ public PlayerDie(taskid)
 	return PLUGIN_CONTINUE;
 }
 
+// ====================================================
+// Player Spawn.
+// + Initialize.
+// + Reviving origin set.
+// ====================================================
 public PlayerSpawn(id)
 {
 	if (g_player_data[id][IS_RESPAWNING])
@@ -349,6 +382,11 @@ public PlayerSpawn(id)
 	set_task_ex(0.1, "TaskSpawn", TASKID_SPAWN + id);
 }
 
+// ====================================================
+// Player Spawn.
+// + Remove dropped Rkit.
+// + Remove Corpse.
+// ====================================================
 public TaskSpawn(taskid)
 {
 	new id = taskid - TASKID_SPAWN;
@@ -359,6 +397,9 @@ public TaskSpawn(taskid)
 		g_player_data[id][HAS_KIT] = true;
 }
 
+// ====================================================
+// Delay Guage.
+// ====================================================
 stock show_time_bar(oneper, percent, bar[])
 {
 	for(new i = 0; i < 30; i++)
@@ -366,11 +407,17 @@ stock show_time_bar(oneper, percent, bar[])
 	bar[30] = '^0';
 }
 
+// ====================================================
+// Stop create default corpse.
+// ====================================================
 public message_clcorpse()
 {
 	return PLUGIN_HANDLED;
 }
 
+// ====================================================
+// Show status icon [R].
+// ====================================================
 public PlayerPostThink(id)
 {
 	// is user connected?
@@ -408,6 +455,9 @@ public PlayerPostThink(id)
 	return FMRES_IGNORED;
 }
 
+// ====================================================
+// Pickup dropped Rkit.
+// ====================================================
 public RKitTouch(kit, id)
 {
 	if(!pev_valid(kit))
@@ -428,6 +478,9 @@ public RKitTouch(kit, id)
 	return FMRES_IGNORED;
 }
 
+// ====================================================
+// E Key Logic.
+// ====================================================
 public PlayerCmdStart(id, handle, random_seed)
 {
 	// Not alive
@@ -437,7 +490,7 @@ public PlayerCmdStart(id, handle, random_seed)
 	// Get user old and actual buttons
 	static iInButton, iInOldButton;
 	iInButton	 = (get_uc(handle, UC_Buttons));
-	iInOldButton = (get_user_oldbutton(id)) & IN_USE;
+	iInOldButton = (pev(id, pev_oldbuttons) & IN_USE);
 
 	// C4 is through.
 	if ((pev(id, pev_weapons) & (1 << CSW_C4)) && (iInButton & IN_ATTACK))
@@ -472,7 +525,7 @@ public PlayerCmdStart(id, handle, random_seed)
 }
 
 //====================================================
-// Removing target put lasermine.
+// Revive Progress.
 //====================================================
 public wait_revive(id)
 {
@@ -491,6 +544,9 @@ public wait_revive(id)
 	return FMRES_HANDLED;
 }
 
+//====================================================
+// Target Check.
+//====================================================
 stock CheckDeadBody(id)
 {
 	// Removing Check.
@@ -508,6 +564,9 @@ stock CheckDeadBody(id)
 	return true;
 }
 
+//====================================================
+// Create Corpse.
+//====================================================
 public TaskCheckDeadFlag(taskid)
 {
 	new id = taskid - TASKID_CHECK_DEAD_FLAG;
@@ -521,6 +580,9 @@ public TaskCheckDeadFlag(taskid)
 	}
 }	
 
+//====================================================
+// Progress Complete.
+//====================================================
 public TaskRevive(taskid)
 {
 	new id = taskid - TASKID_REVIVING;
@@ -552,8 +614,11 @@ public TaskRevive(taskid)
 	return PLUGIN_CONTINUE;
 }
 
- public TaskReSpawn(taskid) 
- {
+//====================================================
+// Respawn.
+//====================================================
+public TaskReSpawn(taskid) 
+{
 	new id = taskid - TASKID_RESPAWN;
 	
 	g_player_data[id][IS_RESPAWNING] = true;
@@ -561,16 +626,22 @@ public TaskRevive(taskid)
 	//	set_task(0.1, "TaskCheckReSpawn", TASKID_CHECKRE + id);
 }
 
+//====================================================
+// Respawn Check and Set Origin.
+//====================================================
 public TaskCheckReSpawn(taskid)
 {
 	new id = taskid - TASKID_CHECKRE;
 	
-	if(pev(id, pev_iuser1))
+	if(!g_player_data[id][IS_RESPAWNING])
 		set_task(0.1, "TaskReSpawn", TASKID_RESPAWN + id);
 	else
 		set_task(0.1, "TaskOrigin",  TASKID_ORIGIN + id);
 }
 
+//====================================================
+// Set Origin.
+//====================================================
 public TaskOrigin(taskid)
 {
 	new id = taskid - TASKID_ORIGIN;
@@ -583,6 +654,9 @@ public TaskOrigin(taskid)
 	set_task(0.1, "TaskStuckCheck", TASKID_CHECKST + id);
 }
 
+//====================================================
+// Set Origin.
+//====================================================
 public TaskStuckCheck(taskid)
 {
 	new id = taskid - TASKID_CHECKST;
@@ -596,6 +670,9 @@ public TaskStuckCheck(taskid)
 		set_task(0.1, "TaskSetplayer", TASKID_SETUSER + id);
 }
 
+//====================================================
+// Respawn Finalize.
+//====================================================
 public TaskSetplayer(taskid)
 {
 	new id = taskid - TASKID_SETUSER;
@@ -635,6 +712,9 @@ public TaskSetplayer(taskid)
 	player_respawn_reset(id);
 }
 
+//====================================================
+// Target Check.
+//====================================================
 stock bool:can_target_revive(id, &target, &body)
 {
 	if(!is_user_alive(id))
@@ -656,12 +736,18 @@ stock bool:can_target_revive(id, &target, &body)
 	return true;
 }
 
+//====================================================
+// Failed Revive.
+//====================================================
 stock failed_revive(id)
 {
 	show_progress(id, 0);
 	emit_sound(id, CHAN_AUTO, ENT_SOUNDS[SOUND_FAILED], VOL_NORM, ATTN_NORM, 0, PITCH_NORM);
 }
 
+//====================================================
+// find corpse id.
+//====================================================
 stock find_dead_body(id)
 {
 	static Float:origin[3];
@@ -679,6 +765,9 @@ stock find_dead_body(id)
 	return 0;
 }
 
+//====================================================
+// Visible Corpse?.
+//====================================================
 stock bool:is_ent_visible(index, entity, ignoremonsters = 0) 
 {
 	new Float:start[3], Float:dest[3];
@@ -697,6 +786,9 @@ stock bool:is_ent_visible(index, entity, ignoremonsters = 0)
 	return false;
 }
 
+//====================================================
+// Create corpse.
+//====================================================
 stock create_fake_corpse(id)
 {
 	set_pev(id, pev_effects, EF_NODRAW);
@@ -746,6 +838,9 @@ stock create_fake_corpse(id)
 	}	
 }
 
+//====================================================
+// Avoid Stuck.
+//====================================================
 stock bool:findemptyloc(ent, Float:radius)
 {
 	if(!pev_valid(ent))
@@ -779,6 +874,9 @@ stock bool:findemptyloc(ent, Float:radius)
 	return found;
 }
 
+//====================================================
+// Avoid Stuck.
+//====================================================
 stock bool:is_hull_vacant(const Float:origin[3])
 {
 	new tr = 0;
@@ -790,6 +888,9 @@ stock bool:is_hull_vacant(const Float:origin[3])
 	return false;
 }
 
+//====================================================
+// Initialize Logic A.
+//====================================================
 stock player_reset(id)
 {
 	remove_task(TASKID_DIE_COUNT + id);
@@ -810,6 +911,9 @@ stock player_reset(id)
 	// g_player_data[id][BODY_ORIGIN]	= Float:{0, 0, 0};
 }
 
+//====================================================
+// Initialize Logic B.
+//====================================================
 stock player_respawn_reset(id)
 {
 	remove_task(TASKID_DIE_COUNT + id);
@@ -828,6 +932,9 @@ stock player_respawn_reset(id)
 	g_player_data[id][BODY_ORIGIN]	= Float:{0, 0, 0};
 }
 
+//====================================================
+// Progress Bar.
+//====================================================
 stock show_progress(id, seconds) 
 {
 	if(is_user_bot(id))
@@ -841,6 +948,9 @@ stock show_progress(id, seconds)
 	}
 }
 
+//====================================================
+// Status Icon [R].
+//====================================================
 stock msg_statusicon(id, status)
 {
 	if(is_user_bot(id))
@@ -855,6 +965,9 @@ stock msg_statusicon(id, status)
 	message_end();
 }
 
+//====================================================
+// Time Format.
+//====================================================
 stock get_time_format(Float:times, result[], len)
 {
 //  new hour = floatround(times) / 60 /60;
@@ -863,6 +976,9 @@ stock get_time_format(Float:times, result[], len)
     formatex(result, len, "%02d:%02d", min, sec);
 }
 
+//====================================================
+// Drop Rkit.
+//====================================================
 stock drop_rkit(id)
 {
 	new Float:velocity[3];
@@ -887,6 +1003,9 @@ stock drop_rkit(id)
 	}
 }
 
+//====================================================
+// Remove target entity by owner.
+//====================================================
 stock remove_target_entity_by_owner(id, className[])
 {
 	new iEnt = -1;
@@ -905,6 +1024,9 @@ stock remove_target_entity_by_owner(id, className[])
 	}
 }
 
+//====================================================
+// Remove target entity by classname.
+//====================================================
 stock remove_target_entity_by_classname(className[])
 {
 	new iEnt = -1;
@@ -949,6 +1071,9 @@ stock get_dec_string(const a[])
 	return r;
 }
 
+//====================================================
+// Round Start.
+//====================================================
 public RoundStart()
 {
 	if (g_cvars[RKIT_BOT_HAS_KIT])
@@ -966,6 +1091,9 @@ public RoundStart()
 }
 	
 
+//====================================================
+// Bot has Rkit.
+//====================================================
 public TaskBotBuy()
 {
 	static players[32], num;
@@ -976,3 +1104,66 @@ public TaskBotBuy()
 			g_player_data[players[i]][HAS_KIT] = true;
 	}
 }
+
+//====================================================
+// ATTENSION:
+// Debug mode Self Revive.
+//====================================================
+#if defined DEBUG_MODE
+public DebugRevive(id)
+{
+	new target, body;
+
+	if (!can_target_revive_debug(id, target, body))
+	{
+		failed_revive(id);
+		client_print_color(id, print_chat, "^4[Revive Kit]:^1 Failed target reviving.");
+		return PLUGIN_CONTINUE;
+	}
+
+	static Float:velocity[3];
+	pev(id, pev_velocity, velocity);
+	xs_vec_set(velocity, 0.0, 0.0, velocity[2]);
+	set_pev(id, pev_velocity, velocity);		
+
+	if(g_player_data[id][REVIVE_DELAY] < get_gametime())
+	{
+		if(findemptyloc(body, 10.0))
+		{
+			set_pev(body, pev_flags, pev(body, pev_flags) | FL_KILLME);			
+			emit_sound(id, CHAN_AUTO, ENT_SOUNDS[SOUND_FINISHED], VOL_NORM, ATTN_NORM, 0, PITCH_NORM);
+			set_task(0.1, "TaskReSpawn", TASKID_RESPAWN + target);
+		}
+	}
+	return PLUGIN_CONTINUE;
+}
+
+stock bool:can_target_revive_debug(id, &target, &body)
+{
+	body = find_dead_body_debug(id);
+	if(!pev_valid(body))
+		return false;
+	
+	target = pev(body, pev_owner);
+	if(!is_user_connected(target))
+		return false;
+
+	new lb_team  = get_user_team(target);
+	new rev_team = get_user_team(id);
+	if(lb_team != 1 && lb_team != 2 || lb_team != rev_team)
+		return false;
+
+	return true;
+}
+
+stock find_dead_body_debug(id)
+{
+	new ent = -1;
+	while((ent = engfunc(EngFunc_FindEntityByString, ent, "classname", ENTITY_CLASS_NAME[CORPSE])) != 0)
+	{
+		if (pev(ent, pev_owner) == id)
+			return ent;
+	}
+	return 0;
+}
+#endif
