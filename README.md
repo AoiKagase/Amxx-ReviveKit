@@ -11,7 +11,7 @@ https://forums.alliedmods.net/showthread.php?p=252625
 | `rkit_screen_fade` | 1 | Fades the vision of the player being immediately after revived. |
 | `rkit_screen_fade_time` | 2 | Fade in time.|
 | `rkit_delay_revive` | 3 | How long it takes to revive. (seconds)|
-| `rkit_delay_die` | 30 | Revivable time. If this time is exceeded, the body will disappear. (seconds)|
+| `rkit_delay_die` | 30 | Revivable time. If this time is exceeded, the body will disappear. (seconds) 0 is No time limit.|
 | `rkit_distance` | 70.0 | Revivable distance. (float value)|
 | `rkit_bot_has_kit` | 1 | Bot has the kit. 0 = no or 1 = yes.|
 | `rkit_bot_can_revive` | 1 | Can revive the bot. 0 = no or 1 = yes.|
