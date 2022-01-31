@@ -143,6 +143,23 @@ new const ENTITY_CLASS_NAME[E_CLASS_NAME][MAX_NAME_LENGTH] =
 	"revival_kit",
 };
 
+new g_CVarString	[E_CVARS][][] =
+{
+	{"rkit_health", 			"75",	"num"},
+	{"rkit_cost",				"1200",	"num"},
+	{"rkit_screen_fade",		"1",	"num"},
+	{"rkit_screen_fade_time",	"2",	"num"},
+	{"rkit_delay_revive",		"3",	"num"},
+	{"rkit_delay_die",			"0",	"num"},
+	{"rkit_deathmatch",			"0",	"num"},
+	{"rkit_bot_has_kit",		"1",	"num"},
+	{"rkit_bot_can_revive",		"1",	"num"},
+	{"rkit_buy_mode",			"1",	"num"},
+	{"rkit_buy_zone",			"1",	"num"},
+	{"rkit_distance",			"70.0",	"float"},
+};
+
+new g_cvarPointer	[E_CVARS];
 new g_cvars			[E_CVARS];
 new g_msg_data		[E_MESSAGES];
 new g_player_data	[MAX_PLAYERS + 1][E_PLAYER_DATA];
@@ -177,18 +194,18 @@ public plugin_init()
 	#if defined DEBUG_MODE
 	register_clcmd		("debugrkit",		"DebugRevive");
 	#endif
-	bind_pcvar_num		(create_cvar("rkit_health", 			"75"), 		g_cvars[RKIT_HEALTH]);
-	bind_pcvar_num		(create_cvar("rkit_cost", 				"1200"), 	g_cvars[RKIT_COST]);
-	bind_pcvar_num		(create_cvar("rkit_screen_fade",		"1"), 		g_cvars[RKIT_SC_FADE]);
-	bind_pcvar_num		(create_cvar("rkit_delay_revive", 		"3"), 		g_cvars[RKIT_TIME]);
-	bind_pcvar_num		(create_cvar("rkit_delay_die", 			"30"), 		g_cvars[RKIT_DEATH_TIME]);
-	bind_pcvar_num		(create_cvar("rkit_screen_fade_time", 	"2"), 		g_cvars[RKIT_SC_FADE_TIME]);
-	bind_pcvar_float	(create_cvar("rkit_distance", 			"70.0"), 	g_cvars[RKIT_DISTANCE]);
-	bind_pcvar_num		(create_cvar("rkit_deathmatch",			"0"),		g_cvars[RKIT_DM_MODE]);
-	bind_pcvar_num		(create_cvar("rkit_bot_has_kit",		"1"),		g_cvars[RKIT_BOT_HAS_KIT]);
-	bind_pcvar_num		(create_cvar("rkit_bot_can_revive",		"1"),		g_cvars[RKIT_BOT_CAN_REVIVE]);
-	bind_pcvar_num		(create_cvar("rkit_buy_mode",			"1"),		g_cvars[RKIT_BUYMODE]);
-	bind_pcvar_num		(create_cvar("rkit_buy_zone",			"1"),		g_cvars[RKIT_BUYZONE]);
+
+	for(new i = 0; i < E_CVARS; i++)
+	{
+		g_cvarPointer[i] = create_cvar(g_CVarString[i][0], g_CVarString[i][1]);
+		if (equali(g_CVarString[i][2], "num"))
+			bind_pcvar_num(g_cvarPointer[i], g_cvars[i]);
+		else if(equali(g_CVarString[i][2], "float"))
+			bind_pcvar_float(g_cvarPointer[i], Float:g_cvars[i]);
+		
+		hook_cvar_change(g_cvarPointer[i], "cvar_change_callback");
+	}
+
 	RegisterHam			(Ham_Touch,	ENTITY_CLASS_NAME[I_TARGET],"RKitTouch");
 	RegisterHamPlayer	(Ham_Killed,							"PlayerKilled");
 	RegisterHamPlayer	(Ham_Player_PostThink,					"PlayerPostThink");
@@ -202,6 +219,30 @@ public plugin_init()
 	for(new i = 0; i < E_MESSAGES; i++)
 		g_msg_data[i] = get_user_msgid(MESSAGES[i]);
 	g_sync_obj = CreateHudSyncObj();
+}
+
+public cvar_change_callback(pcvar, const old_value[], const new_value[])
+{
+	for(new i = 0; i < E_CVARS; i++)
+	{
+		if (g_cvarPointer[i] == pcvar)
+		{
+			if (equali(g_CVarString[i][2], "num"))
+				g_cvars[i] = str_to_num(new_value);
+			else if (equali(g_CVarString[i][2], "float"))
+				g_cvars[i] = _:str_to_float(new_value);
+
+			console_print(0,"[RKit Debug]: Changed Cvar '%s' => '%s' to '%s'", g_CVarString[i][0], old_value, new_value);
+		}
+	}
+
+	if (pcvar == g_cvarPointer[RKIT_BUYMODE] && equali(new_value, "0"))
+	{
+		new players[MAX_PLAYERS], pnum;
+		get_players_ex(players, pnum, GetPlayers_ExcludeHLTV);
+		for(new i = 0; i < pnum; i++)
+			g_player_data[players[i]][HAS_KIT] = true;
+	}
 }
 // ====================================================
 //  Bot Register Ham.
@@ -310,7 +351,9 @@ public PlayerKilled(iVictim, iAttacker)
 		
 	g_player_data[iVictim][DEAD_LINE] = get_gametime();
 
-	set_task_ex(1.0, "PlayerDie", 		  TASKID_DIE_COUNT 		 + iVictim, _, _, SetTaskFlags:SetTask_Repeat);
+	if (g_cvars[RKIT_DEATH_TIME] > 0)
+		set_task_ex(1.0, "PlayerDie", 	  TASKID_DIE_COUNT 		 + iVictim, _, _, SetTaskFlags:SetTask_Repeat);
+
 	set_task_ex(0.5, "TaskCheckDeadFlag", TASKID_CHECK_DEAD_FLAG + iVictim, _, _, SetTaskFlags:SetTask_Repeat);
 
 	return HAM_IGNORED;
