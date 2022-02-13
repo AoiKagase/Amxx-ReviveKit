@@ -19,7 +19,7 @@
 
 static const PLUGIN_NAME	[] 		= "Revival Kit / Remastered";
 static const PLUGIN_AUTHOR	[] 		= "Aoi.Kagase";
-static const PLUGIN_VERSION	[]		= "0.1";
+static const PLUGIN_VERSION	[]		= "0.5";
 
 // ===================================================
 // SELF REVIVE COMMAND.
@@ -141,6 +141,7 @@ enum _:E_CVARS
 	RKIT_BUYMODE,
 	RKIT_BUYZONE,
 	Float:RKIT_DISTANCE,
+	RKIT_CHECK_OBSTACLE
 };
 
 new g_CVarString	[E_CVARS][][] =
@@ -157,6 +158,7 @@ new g_CVarString	[E_CVARS][][] =
 	{"rkit_buy_mode",			"1",	"num"},
 	{"rkit_buy_zone",			"1",	"num"},
 	{"rkit_distance",			"70.0",	"float"},
+	{"rkit_check_obstacle",		"1",	"num"},
 };
 
 new g_cvarPointer	[E_CVARS];
@@ -816,6 +818,10 @@ stock find_dead_body(id)
 //====================================================
 stock bool:is_ent_visible(index, entity, ignoremonsters = 0) 
 {
+	// Non Check Obstacle.
+	if (!g_cvars[RKIT_CHECK_OBSTACLE])
+		return true;
+
 	new Float:start[3], Float:dest[3];
 	pev(index, pev_origin, start);
 	pev(index, pev_view_ofs, dest);
