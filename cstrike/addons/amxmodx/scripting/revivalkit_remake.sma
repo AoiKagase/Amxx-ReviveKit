@@ -71,22 +71,6 @@ enum _:E_MODELS
 	R_KIT,
 };
 
-enum _:E_CVARS
-{
-	RKIT_HEALTH,
-	RKIT_COST,
-	RKIT_SC_FADE,
-	RKIT_TIME,
-	RKIT_SC_FADE_TIME,
-	RKIT_DEATH_TIME,
-	RKIT_DM_MODE,
-	RKIT_BOT_HAS_KIT,
-	RKIT_BOT_CAN_REVIVE,
-	RKIT_BUYMODE,
-	RKIT_BUYZONE,
-	Float:RKIT_DISTANCE,
-};
-
 enum _:E_PLAYER_DATA
 {
 	bool:HAS_KIT		,
@@ -141,6 +125,22 @@ new const ENTITY_CLASS_NAME[E_CLASS_NAME][MAX_NAME_LENGTH] =
 	"player",
 	"fake_corpse",
 	"revival_kit",
+};
+
+enum _:E_CVARS
+{
+	RKIT_HEALTH,
+	RKIT_COST,
+	RKIT_SC_FADE,
+	RKIT_SC_FADE_TIME,
+	RKIT_TIME,
+	RKIT_DEATH_TIME,
+	RKIT_DM_MODE,
+	RKIT_BOT_HAS_KIT,
+	RKIT_BOT_CAN_REVIVE,
+	RKIT_BUYMODE,
+	RKIT_BUYZONE,
+	Float:RKIT_DISTANCE,
 };
 
 new g_CVarString	[E_CVARS][][] =
@@ -384,7 +384,7 @@ public PlayerDie(taskid)
 		{
 			if (!is_user_bot(id))
 			{
-				remaining                                                     = float(g_cvars[RKIT_DEATH_TIME]) - time;
+				remaining = float(g_cvars[RKIT_DEATH_TIME]) - time;
 				show_time_bar(100 / GUAGE_MAX, floatround(remaining * 100.0 / float(g_cvars[RKIT_DEATH_TIME]), floatround_ceil), bar);
 				new timestr[6];
 				get_time_format(remaining, timestr, charsmax(timestr));
@@ -576,7 +576,10 @@ public wait_revive(id)
 		return FMRES_IGNORED;
 
 	if (float(g_cvars[RKIT_TIME]) > 0.0)
+	{
 		show_progress(id, g_cvars[RKIT_TIME]);
+		client_print(id, print_chat, "[RKIT DEBUG] Reviving At %d Sec", g_cvars[RKIT_TIME]);
+	}
 	
 	new Float:gametime = get_gametime();
 	g_player_data[id][REVIVE_DELAY] = (gametime + float(g_cvars[RKIT_TIME]) - 0.01);
@@ -985,9 +988,12 @@ stock show_progress(id, seconds)
 	
 	if (is_user_alive(id))
 	{
-		message_begin(MSG_ONE_UNRELIABLE, g_msg_data[MSG_BARTIME], {0.0,0.0,0.0}, id);
+		engfunc(EngFunc_MessageBegin, MSG_ONE, g_msg_data[MSG_BARTIME], {0,0,0}, id);
 		write_short(seconds);
 		message_end();
+		// message_begin(MSG_ONE_UNRELIABLE, g_msg_data[MSG_BARTIME], {0.0,0.0,0.0}, id);
+		// write_short(seconds);
+		// message_end();
 	}
 }
 
