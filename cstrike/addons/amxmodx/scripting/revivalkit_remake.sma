@@ -380,11 +380,11 @@ public PlayerDie(taskid)
 
 	if (!is_user_alive(id))
 	{
-		if (time < g_cvars[RKIT_DEATH_TIME])
+		if (time < float(g_cvars[RKIT_DEATH_TIME]))
 		{
 			if (!is_user_bot(id))
 			{
-				remaining = g_cvars[RKIT_DEATH_TIME] - time;
+				remaining                                                     = float(g_cvars[RKIT_DEATH_TIME]) - time;
 				show_time_bar(100 / GUAGE_MAX, floatround(remaining * 100.0 / float(g_cvars[RKIT_DEATH_TIME]), floatround_ceil), bar);
 				new timestr[6];
 				get_time_format(remaining, timestr, charsmax(timestr));
@@ -575,11 +575,11 @@ public wait_revive(id)
 	if (!CheckDeadBody(id))
 		return FMRES_IGNORED;
 
-	if (g_cvars[RKIT_TIME] > 0.0)
+	if (float(g_cvars[RKIT_TIME]) > 0.0)
 		show_progress(id, g_cvars[RKIT_TIME]);
 	
 	new Float:gametime = get_gametime();
-	g_player_data[id][REVIVE_DELAY] = (gametime + g_cvars[RKIT_TIME] - 0.01);
+	g_player_data[id][REVIVE_DELAY] = (gametime + float(g_cvars[RKIT_TIME]) - 0.01);
 
 	emit_sound(id, CHAN_AUTO, ENT_SOUNDS[SOUND_START], VOL_NORM, ATTN_NORM, 0, PITCH_NORM);
 	set_task_ex(0.1, "TaskRevive", TASKID_REVIVING + id, _,_, SetTaskFlags:SetTask_Repeat);
