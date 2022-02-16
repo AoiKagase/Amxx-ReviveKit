@@ -578,10 +578,7 @@ public wait_revive(id)
 		return FMRES_IGNORED;
 
 	if (float(g_cvars[RKIT_TIME]) > 0.0)
-	{
 		show_progress(id, g_cvars[RKIT_TIME]);
-		client_print(id, print_chat, "[RKIT DEBUG] Reviving At %d Sec", g_cvars[RKIT_TIME]);
-	}
 	
 	new Float:gametime = get_gametime();
 	g_player_data[id][REVIVE_DELAY] = (gametime + float(g_cvars[RKIT_TIME]) - 0.01);
@@ -657,6 +654,7 @@ public TaskRevive(taskid)
 			emit_sound(id, CHAN_AUTO, ENT_SOUNDS[SOUND_FINISHED], VOL_NORM, ATTN_NORM, 0, PITCH_NORM);
 			set_task(0.1, "TaskReSpawn", TASKID_RESPAWN + target);
 			remove_task(taskid);
+			client_print_color(id, print_chat, "^4[Revive Kit]:^1 %n revived successfully", target);
 		}
 	}
 	return PLUGIN_CONTINUE;
