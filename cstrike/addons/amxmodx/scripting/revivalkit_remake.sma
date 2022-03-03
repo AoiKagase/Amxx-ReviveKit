@@ -37,15 +37,19 @@ static const PLUGIN_VERSION	[]		= "0.5";
 	#define  MAX_NAME_LENGTH			32
 #endif
 
-#define TASKID_DIE_COUNT			41320
-#define TASKID_REVIVING				41360
-#define TASKID_CHECK_DEAD_FLAG		41400
-#define TASKID_RESPAWN 	            41440
-#define TASKID_CHECKRE 	            41480
-#define TASKID_CHECKST 	            41520
-#define TASKID_ORIGIN 	            41560
-#define TASKID_SETUSER 	            41600
-#define TASKID_SPAWN				41650
+enum (+= 32)
+{
+	TASKID_DIE_COUNT 				= 	1541320,
+	TASKID_REVIVING,
+	TASKID_CHECK_DEAD_FLAG,
+	TASKID_RESPAWN,
+	TASKID_CHECKRE,
+	TASKID_CHECKST,
+	TASKID_ORIGIN,
+	TASKID_SETUSER,
+	TASKID_SPAWN,
+};
+
 #define pev_zorigin					pev_fuser4
 #define seconds(%1) 				((1<<12) * (%1))
 
@@ -435,6 +439,10 @@ public PlayerSpawn(id)
 public TaskSpawn(taskid)
 {
 	new id = taskid - TASKID_SPAWN;
+
+	if (!is_user_alive(id))
+		return;
+
 	remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[CORPSE]);
 	remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[R_KIT]);
 
@@ -1063,7 +1071,7 @@ stock remove_target_entity_by_owner(id, className[])
 {
 	new iEnt = -1;
 	new flags;
-	while ((iEnt = cs_find_ent_by_owner(iEnt, className, id)))
+	while ((iEnt = cs_find_ent_by_owner(iEnt, className, id)) > 0)
 	{
 		if (pev_valid(iEnt))
 		{
@@ -1084,7 +1092,7 @@ stock remove_target_entity_by_classname(className[])
 {
 	new iEnt = -1;
 	new flags;
-	while ((iEnt = cs_find_ent_by_class(iEnt, className)))
+	while ((iEnt = cs_find_ent_by_class(iEnt, className)) > 0)
 	{
 		if (pev_valid(iEnt))
 		{
