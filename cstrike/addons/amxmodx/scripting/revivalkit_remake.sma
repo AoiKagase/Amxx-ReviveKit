@@ -19,7 +19,7 @@
 
 static const PLUGIN_NAME	[] 		= "Revival Kit / Remastered";
 static const PLUGIN_AUTHOR	[] 		= "Aoi.Kagase";
-static const PLUGIN_VERSION	[]		= "0.5";
+static const PLUGIN_VERSION	[]		= "0.6";
 
 // ===================================================
 // SELF REVIVE COMMAND.
@@ -84,6 +84,7 @@ enum _:E_PLAYER_DATA
 	Float:DEAD_LINE		,
 	Float:REVIVE_DELAY	,
 	Float:BODY_ORIGIN	[3],
+	Float:AIM_VEC		[3],
 };
 
 enum _:E_CLASS_NAME
@@ -145,7 +146,8 @@ enum _:E_CVARS
 	RKIT_BUYMODE,
 	RKIT_BUYZONE,
 	Float:RKIT_DISTANCE,
-	RKIT_CHECK_OBSTACLE
+	RKIT_CHECK_OBSTACLE,
+	RKIT_REWARD,
 };
 
 new g_CVarString	[E_CVARS][][] =
@@ -163,6 +165,7 @@ new g_CVarString	[E_CVARS][][] =
 	{"rkit_buy_zone",			"1",	"num"},
 	{"rkit_distance",			"70.0",	"float"},
 	{"rkit_check_obstacle",		"1",	"num"},
+	{"rkit_reward",				"150",	"num"},
 };
 
 new g_cvarPointer	[E_CVARS];
@@ -256,19 +259,19 @@ public cvar_change_callback(pcvar, const old_value[], const new_value[])
 new g_bots_registered = false;
 public client_authorized( id )
 {
-    if( !g_bots_registered && is_user_bot( id ) )
-    {
-        set_task( 0.1, "register_bots", id );
-    }
+	if( !g_bots_registered && is_user_bot( id ) )
+	{
+		set_task( 0.1, "register_bots", id );
+	}
 }
 
 public register_bots( id )
 {
-    if( !g_bots_registered && is_user_connected( id ) )
-    {
-        RegisterHamFromEntity( Ham_Killed, id, "PlayerKilled");
-        g_bots_registered = true;
-    }
+	if( !g_bots_registered && is_user_connected( id ) )
+	{
+		RegisterHamFromEntity( Ham_Killed, id, "PlayerKilled");
+		g_bots_registered = true;
+	}
 }
 
 // ====================================================
@@ -332,6 +335,10 @@ public CmdBuyRKit(id)
 public PlayerKilled(iVictim, iAttacker)
 {
 	player_reset(iVictim);
+
+	// Get Aim Vector.
+	pev(iVictim, pev_v_angle, g_player_data[iVictim][AIM_VEC]);
+
 	if (g_cvars[RKIT_BUYMODE])
 	{
 		if(g_player_data[iVictim][HAS_KIT])
@@ -660,6 +667,9 @@ public TaskRevive(taskid)
 		{
 			set_pev(body, pev_flags, pev(body, pev_flags) | FL_KILLME);			
 			emit_sound(id, CHAN_AUTO, ENT_SOUNDS[SOUND_FINISHED], VOL_NORM, ATTN_NORM, 0, PITCH_NORM);
+			// Reward
+			if (g_cvars[RKIT_REWARD] > 0)
+				cs_set_user_money(id, cs_get_user_money(id) + g_cvars[RKIT_REWARD]);
 			set_task(0.1, "TaskReSpawn", TASKID_RESPAWN + target);
 			remove_task(taskid);
 			client_print_color(id, print_chat, "^4[Revive Kit]:^1 %n revived successfully", target);
@@ -736,6 +746,10 @@ public TaskSetplayer(taskid)
 	pev(id, pev_origin, vOrigin);
 
 	set_user_health(id, g_cvars[RKIT_HEALTH]);
+
+	// Set Aim vector.
+	set_pev(id, pev_v_angle, g_player_data[id][AIM_VEC]);
+	set_pev(id, pev_fixangle, 1);
 
 	if (!is_user_bot(id))
 	if (g_cvars[RKIT_SC_FADE])
@@ -1032,9 +1046,9 @@ stock msg_statusicon(id, status)
 stock get_time_format(Float:times, result[], len)
 {
 //  new hour = floatround(times) / 60 /60;
-    new min  =(floatround(times) / 60) % 60;
-    new sec  = floatround(times) % 60;
-    formatex(result, len, "%02d:%02d", min, sec);
+	new min  =(floatround(times) / 60) % 60;
+	new sec  = floatround(times) % 60;
+	formatex(result, len, "%02d:%02d", min, sec);
 }
 
 //====================================================
