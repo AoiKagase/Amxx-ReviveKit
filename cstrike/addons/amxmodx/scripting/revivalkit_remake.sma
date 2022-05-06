@@ -688,6 +688,23 @@ public TaskReSpawn(taskid)
 	g_player_data[id][IS_RESPAWNING] = true;
 	ExecuteHamB(Ham_CS_RoundRespawn, id);
 	//	set_task(0.1, "TaskCheckReSpawn", TASKID_CHECKRE + id);
+
+	if (!is_user_bot(id))
+	{
+		if (g_cvars[RKIT_SC_FADE])
+		{
+			new sec = seconds(g_cvars[RKIT_SC_FADE_TIME]);
+			message_begin(MSG_ONE,g_msg_data[MSG_SCREEN_FADE], _, id);
+			write_short(sec);
+			write_short(sec);
+			write_short(0);
+			write_byte(0);
+			write_byte(0);
+			write_byte(0);
+			write_byte(255);
+			message_end();
+		}
+	}	
 }
 
 //====================================================
@@ -749,22 +766,9 @@ public TaskSetplayer(taskid)
 
 	// Set Aim vector.
 	set_pev(id, pev_v_angle, g_player_data[id][AIM_VEC]);
+	set_pev(id, pev_angles, g_player_data[id][AIM_VEC]);
 	set_pev(id, pev_fixangle, 1);
 
-	if (!is_user_bot(id))
-	if (g_cvars[RKIT_SC_FADE])
-	{
-		new sec = seconds(g_cvars[RKIT_SC_FADE_TIME]);
-		message_begin(MSG_ONE,g_msg_data[MSG_SCREEN_FADE], _, id);
-		write_short(sec);
-		write_short(sec);
-		write_short(0);
-		write_byte(0);
-		write_byte(0);
-		write_byte(0);
-		write_byte(255);
-		message_end();
-	}
 	g_player_data[id][IS_RESPAWNING] = false;
 	while((entity = engfunc(EngFunc_FindEntityInSphere, entity, vOrigin, radius)) != 0)
 	{
