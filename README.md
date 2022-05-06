@@ -19,4 +19,4 @@ https://forums.alliedmods.net/showthread.php?p=252625
 | `rkit_buy_zone` | 1 | If `rkit_buy_mode` is 1, it can only be bought in the buy zone. 0 = no or 1 = yes.|
 | `rkit_deathmatch` | 0 | deathmatch mode. 0 = off or 1 = on |
 | `rkit_check_obstacle` | 1 | Obstacle detection function. If there is an obstacle between you and the corpse, it cannot be resuscitated. 0 = off or 1 = on |
-| `rkit_reward` | 150 | Amount of compensation for reviving. default $150. |
+| `rkit_reward` | 150 | Amount of compensation for reviving. default $150. 0 is invalid. |
