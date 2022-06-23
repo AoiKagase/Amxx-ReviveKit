@@ -148,24 +148,28 @@ enum _:E_CVARS
 	Float:RKIT_DISTANCE,
 	RKIT_CHECK_OBSTACLE,
 	RKIT_REWARD,
+	Float:RKIT_REVIVE_RADIUS,
+	RKIT_REVIVE_ATTEMPT,
 };
 
 new g_CVarString	[E_CVARS][][] =
 {
-	{"rkit_health", 			"75",	"num"},
-	{"rkit_cost",				"1200",	"num"},
-	{"rkit_screen_fade",		"1",	"num"},
-	{"rkit_screen_fade_time",	"2",	"num"},
-	{"rkit_delay_revive",		"3",	"num"},
-	{"rkit_delay_die",			"0",	"num"},
-	{"rkit_deathmatch",			"0",	"num"},
-	{"rkit_bot_has_kit",		"1",	"num"},
+	{"rkit_health", 			"75",	"num"},	
+	{"rkit_cost",				"1200",	"num"},	
+	{"rkit_screen_fade",		"1",	"num"},	
+	{"rkit_screen_fade_time",	"2",	"num"},	
+	{"rkit_delay_revive",		"3",	"num"},	
+	{"rkit_delay_die",			"0",	"num"},	
+	{"rkit_deathmatch",			"0",	"num"},	
+	{"rkit_bot_has_kit",		"1",	"num"},	
 	{"rkit_bot_can_revive",		"1",	"num"},
 	{"rkit_buy_mode",			"1",	"num"},
 	{"rkit_buy_zone",			"1",	"num"},
 	{"rkit_distance",			"70.0",	"float"},
 	{"rkit_check_obstacle",		"1",	"num"},
 	{"rkit_reward",				"150",	"num"},
+	{"rkit_revive_radius",		"10.0",	"float"},
+	{"rkit_revive_attempt",		"10",	"num"},
 };
 
 new g_cvarPointer	[E_CVARS];
@@ -663,7 +667,7 @@ public TaskRevive(taskid)
 
 	if(g_player_data[id][REVIVE_DELAY] < get_gametime())
 	{
-		if(findemptyloc(body, 10.0))
+		if(findemptyloc(body, g_cvars[RKIT_REVIVE_RADIUS]))
 		{
 			set_pev(body, pev_flags, pev(body, pev_flags) | FL_KILLME);			
 			emit_sound(id, CHAN_AUTO, ENT_SOUNDS[SOUND_FINISHED], VOL_NORM, ATTN_NORM, 0, PITCH_NORM);
@@ -929,7 +933,7 @@ stock bool:findemptyloc(ent, Float:radius)
 	new owner = pev(ent, pev_owner);
 	new num = 0, bool:found = false;
 	
-	while(num <= 10)
+	while(num < g_cvars[RKIT_REVIVE_ATTEMPT])
 	{
 		if(is_hull_vacant(origin))
 		{
