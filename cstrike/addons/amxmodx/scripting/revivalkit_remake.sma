@@ -829,11 +829,14 @@ stock find_dead_body(id)
 	static Float:origin[3];
 	pev(id, pev_origin, origin);
 	
-	new ent;
+	new ent = -1;
 	static classname[32];
 
 	while((ent = engfunc(EngFunc_FindEntityInSphere, ent, origin, g_cvars[RKIT_DISTANCE])) != 0)
 	{
+		if (!pev_valid(ent))
+			continue;
+
 		pev(ent, pev_classname, classname, 31);
 		if(equali(classname, ENTITY_CLASS_NAME[CORPSE]) && is_ent_visible(id, ent, IGNORE_MONSTERS))
 			return ent;
