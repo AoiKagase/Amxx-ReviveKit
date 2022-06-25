@@ -150,6 +150,7 @@ enum _:E_CVARS
 	RKIT_REWARD,
 	Float:RKIT_REVIVE_RADIUS,
 	RKIT_REVIVE_ATTEMPT,
+	RKIT_REVIVE_MOVELOCK,
 };
 
 new g_CVarString	[E_CVARS][][] =
@@ -170,6 +171,7 @@ new g_CVarString	[E_CVARS][][] =
 	{"rkit_reward",				"150",	"num"},
 	{"rkit_revive_radius",		"10.0",	"float"},
 	{"rkit_revive_attempt",		"10",	"num"},
+	{"rkit_revive_move_lock",	"1",	"num"},
 };
 
 new g_cvarPointer	[E_CVARS];
@@ -660,10 +662,14 @@ public TaskRevive(taskid)
 		return PLUGIN_CONTINUE;
 	}
 
-	static Float:velocity[3];
-	pev(id, pev_velocity, velocity);
-	xs_vec_set(velocity, 0.0, 0.0, velocity[2]);
-	set_pev(id, pev_velocity, velocity);		
+	// Movement Lock
+	if (g_cvars[RKIT_REVIVE_MOVELOCK])
+	{
+		static Float:velocity[3];
+		pev(id, pev_velocity, velocity);
+		xs_vec_set(velocity, 0.0, 0.0, velocity[2]);
+		set_pev(id, pev_velocity, velocity);		
+	}
 
 	if(g_player_data[id][REVIVE_DELAY] < get_gametime())
 	{
