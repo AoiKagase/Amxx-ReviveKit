@@ -437,13 +437,16 @@ public PlayerDie(taskid)
 public PlayerSpawn(id)
 {
 	if (g_player_data[id][IS_RESPAWNING])
+	{
+		// WeaponStrip
+		if (g_cvars[RKIT_RESPAWN_DROP])
+			strip_user_weapons(id);
+
 		set_task(0.1, "TaskOrigin",  TASKID_ORIGIN + id);
+	}
 	else 
 		player_respawn_reset(id);		
 
-	// WeaponStrip
-	if (g_cvars[RKIT_RESPAWN_DROP])
-		strip_user_weapons(id);
 
 	g_player_data[id][IS_RESPAWNING] = false;
 
