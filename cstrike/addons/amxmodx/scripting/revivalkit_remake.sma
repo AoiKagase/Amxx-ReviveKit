@@ -19,7 +19,7 @@
 
 static const PLUGIN_NAME	[] 		= "Revival Kit / Remastered";
 static const PLUGIN_AUTHOR	[] 		= "Aoi.Kagase";
-static const PLUGIN_VERSION	[]		= "0.8";
+static const PLUGIN_VERSION	[]		= "1.000";
 
 // ===================================================
 // SELF REVIVE COMMAND.
