@@ -20,3 +20,7 @@ https://forums.alliedmods.net/showthread.php?p=252625
 | `rkit_deathmatch` | 0 | deathmatch mode. 0 = off or 1 = on |
 | `rkit_check_obstacle` | 1 | Obstacle detection function. If there is an obstacle between you and the corpse, it cannot be resuscitated. 0 = off or 1 = on |
 | `rkit_reward` | 150 | Amount of compensation for reviving. default $150. 0 is invalid. |
+| `rkit_revive_radius` | 10.0 | Range of revive points |
+| `rkit_revive_attempt` | 10 | Number of times the revive point is calculated |
+| `rkit_revive_move_lock` | 1 | Locked movement during resuscitation |
+| `rkit_respawn_weaponstrip` | 0 | Discard all weapons upon resurrection (surrounding weapons are picked up, so only the main arm is left). |
