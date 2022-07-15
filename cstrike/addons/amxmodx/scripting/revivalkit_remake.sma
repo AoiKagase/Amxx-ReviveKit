@@ -54,7 +54,7 @@ enum (+= 32)
 #define seconds(%1) 				((1<<12) * (%1))
 
 #define HUDINFO_PARAMS
-
+#define GUAGE_MAX 					30
 enum _:E_ICON_STATE
 {
 	ICON_HIDE = 0,
@@ -212,16 +212,8 @@ public plugin_init()
 	register_clcmd		("debugrkit",		"DebugRevive");
 	#endif
 
-	for(new i = 0; i < E_CVARS; i++)
-	{
-		g_cvarPointer[i] = create_cvar(g_CVarString[i][0], g_CVarString[i][1]);
-		if (equali(g_CVarString[i][2], "num"))
-			bind_pcvar_num(g_cvarPointer[i], g_cvars[i]);
-		else if(equali(g_CVarString[i][2], "float"))
-			bind_pcvar_float(g_cvarPointer[i], Float:g_cvars[i]);
-		
-		hook_cvar_change(g_cvarPointer[i], "cvar_change_callback");
-	}
+	// Register Cvar pointers.
+	register_cvars();
 
 	RegisterHam			(Ham_Touch,	ENTITY_CLASS_NAME[I_TARGET],"RKitTouch");
 	RegisterHamPlayer	(Ham_Killed,							"PlayerKilled");
@@ -238,6 +230,26 @@ public plugin_init()
 	g_sync_obj = CreateHudSyncObj();
 }
 
+// ====================================================
+//  Register Cvars.
+// ====================================================
+register_cvars()
+{
+	for(new i = 0; i < E_CVARS; i++)
+	{
+		g_cvarPointer[i] = create_cvar(g_CVarString[i][0], g_CVarString[i][1]);
+		if (equali(g_CVarString[i][2], "num"))
+			bind_pcvar_num(g_cvarPointer[i], g_cvars[i]);
+		else if(equali(g_CVarString[i][2], "float"))
+			bind_pcvar_float(g_cvarPointer[i], Float:g_cvars[i]);
+		
+		hook_cvar_change(g_cvarPointer[i], "cvar_change_callback");
+	}
+}
+
+// ====================================================
+//  Callback cvar change.
+// ====================================================
 public cvar_change_callback(pcvar, const old_value[], const new_value[])
 {
 	for(new i = 0; i < E_CVARS; i++)
@@ -261,6 +273,7 @@ public cvar_change_callback(pcvar, const old_value[], const new_value[])
 			g_player_data[players[i]][HAS_KIT] = true;
 	}
 }
+
 // ====================================================
 //  Bot Register Ham.
 // ====================================================
@@ -342,6 +355,9 @@ public CmdBuyRKit(id)
 // ====================================================
 public PlayerKilled(iVictim, iAttacker)
 {
+	if (!is_user_connected(iVictim) || is_user_alive(iVictim))
+		return HAM_IGNORED;
+
 	player_reset(iVictim);
 
 	// Get Aim Vector.
@@ -372,61 +388,9 @@ public PlayerKilled(iVictim, iAttacker)
 		
 	g_player_data[iVictim][DEAD_LINE] = get_gametime();
 
-	if (g_cvars[RKIT_DEATH_TIME] > 0)
-		set_task_ex(1.0, "PlayerDie", 	  TASKID_DIE_COUNT 		 + iVictim, _, _, SetTaskFlags:SetTask_Repeat);
-
-	set_task_ex(0.5, "TaskCheckDeadFlag", TASKID_CHECK_DEAD_FLAG + iVictim, _, _, SetTaskFlags:SetTask_Repeat);
+	create_fake_corpse(id);
 
 	return HAM_IGNORED;
-}
-
-// ====================================================
-// Player Die Finelize.
-// + Show Delay Guage.
-// + Respawn or Remove corpse.
-// ====================================================
-#define GUAGE_MAX 30
-public PlayerDie(taskid)
-{
-	new id = taskid - TASKID_DIE_COUNT;
-	new Float:time = (get_gametime() - g_player_data[id][DEAD_LINE]);
-	new Float:remaining = 0.0;
-	new bar[31] = "";
-
-	if (!is_user_connected(id))
-	{
-		player_reset(id);
-		return PLUGIN_CONTINUE;
-	}
-
-	if (!is_user_alive(id))
-	{
-		if (time < float(g_cvars[RKIT_DEATH_TIME]))
-		{
-			if (!is_user_bot(id))
-			{
-				remaining = float(g_cvars[RKIT_DEATH_TIME]) - time;
-				show_time_bar(100 / GUAGE_MAX, floatround(remaining * 100.0 / float(g_cvars[RKIT_DEATH_TIME]), floatround_ceil), bar);
-				new timestr[6];
-				get_time_format(remaining, timestr, charsmax(timestr));
-				set_hudmessage(255, 0, 0, -1.00, -1.00, .effects= 0 , .fxtime = 0.0, .holdtime = 1.0, .fadeintime = 0.0, .fadeouttime = 0.0, .channel = -1);
-				ShowSyncHudMsg(id, g_sync_obj, "Possible resurrection time remaining: ^n%s^n[%s]", timestr, bar);
-			}
-		}
-		else
-		{
-			// deathmatch mode. auto respawn.
-			if(g_cvars[RKIT_DM_MODE])
-				ExecuteHamB(Ham_CS_RoundRespawn, id);
-			else
-				remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[CORPSE]);
-		}
-	}
-	else
-	{
-		remove_task(taskid);
-	}
-	return PLUGIN_CONTINUE;
 }
 
 // ====================================================
@@ -478,7 +442,7 @@ public TaskSpawn(taskid)
 stock show_time_bar(oneper, percent, bar[])
 {
 	for(new i = 0; i < 30; i++)
-		bar[i] = ((i * oneper) < percent) ? '|' : '_';
+		bar[i] = ((i * oneper) < percent) ? ':' : '_';
 	bar[30] = '^0';
 }
 
@@ -504,10 +468,39 @@ public PlayerPostThink(id)
 		return FMRES_IGNORED;
 
 	// is user dead?
-	if (!is_user_alive(id))
+	// Player Die Finelize.
+	// + Show Delay Guage.
+	// + Respawn or Remove corpse.
+	if (!is_user_alive(id) && !g_player_data[id][IS_DEAD])
 	{
+		new Float:time = (get_gametime() - g_player_data[id][DEAD_LINE]);
+		new Float:remaining = 0.0;
+		new bar[31] = "";		
 		// Hide Rescue icon.
 		msg_statusicon(id, ICON_HIDE);
+
+		if (g_cvars[RKIT_DEATH_TIME] > 0 && time < float(g_cvars[RKIT_DEATH_TIME]))
+		{
+			if (!is_user_bot(id))
+			{
+				remaining = float(g_cvars[RKIT_DEATH_TIME]) - time;
+				show_time_bar(100 / GUAGE_MAX, floatround(remaining * 100.0 / float(g_cvars[RKIT_DEATH_TIME]), floatround_ceil), bar);
+				new timestr[6];
+				get_time_format(remaining, timestr, charsmax(timestr));
+				set_hudmessage(255, 0, 0, -1.00, -1.00, .effects= 0 , .fxtime = 0.0, .holdtime = 1.0, .fadeintime = 0.0, .fadeouttime = 0.0, .channel = -1);
+				ShowSyncHudMsg(id, g_sync_obj, "Possible resurrection time remaining: ^n%s^n[%s]", timestr, bar);
+			}
+		}
+		else
+		{
+			g_player_data[id][IS_DEAD] = true;				
+			// deathmatch mode. auto respawn.
+			if(g_cvars[RKIT_DM_MODE])
+				ExecuteHamB(Ham_CS_RoundRespawn, id);
+			else
+				remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[CORPSE]);
+		}
+
 		return FMRES_IGNORED;
 	}
 	
@@ -638,22 +631,6 @@ stock CheckDeadBody(id)
 	client_print_color(id, print_chat, "^4[Revive Kit]:^1 Reviving %n", lucky_bastard);
 	return true;
 }
-
-//====================================================
-// Create Corpse.
-//====================================================
-public TaskCheckDeadFlag(taskid)
-{
-	new id = taskid - TASKID_CHECK_DEAD_FLAG;
-	if(!is_user_connected(id))
-		return;
-	
-	if(pev(id, pev_deadflag) == DEAD_DEAD)
-	{
-		create_fake_corpse(id);
-		remove_task(taskid);
-	}
-}	
 
 //====================================================
 // Progress Complete.
@@ -788,14 +765,16 @@ public TaskSetplayer(taskid)
 	set_pev(id, pev_angles, g_player_data[id][AIM_VEC]);
 	set_pev(id, pev_fixangle, 1);
 
-	g_player_data[id][IS_RESPAWNING] = false;
-	while((entity = engfunc(EngFunc_FindEntityInSphere, entity, vOrigin, radius)) != 0)
+	if (!g_cvars[RKIT_RESPAWN_DROP])
 	{
-		if (pev_valid(entity))
+		while((entity = engfunc(EngFunc_FindEntityInSphere, entity, vOrigin, radius)) != 0)
 		{
-			if(pev(entity, pev_owner) == id)
+			if (pev_valid(entity))
 			{
-				dllfunc(DLLFunc_Touch, entity, id);
+				if(pev(entity, pev_owner) == id)
+				{
+					dllfunc(DLLFunc_Touch, entity, id);
+				}
 			}
 		}
 	}
