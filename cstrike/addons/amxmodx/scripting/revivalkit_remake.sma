@@ -388,7 +388,7 @@ public PlayerKilled(iVictim, iAttacker)
 		
 	g_player_data[iVictim][DEAD_LINE] = get_gametime();
 
-	create_fake_corpse(id);
+	create_fake_corpse(iVictim);
 
 	return HAM_IGNORED;
 }
