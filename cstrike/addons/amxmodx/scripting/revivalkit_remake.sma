@@ -85,6 +85,7 @@ enum _:E_PLAYER_DATA
 	Float:REVIVE_DELAY	,
 	Float:BODY_ORIGIN	[3],
 	Float:AIM_VEC		[3],
+	DEADBODY_ID			,
 };
 
 enum _:E_CLASS_NAME
@@ -388,8 +389,6 @@ public PlayerKilled(iVictim, iAttacker)
 		
 	g_player_data[iVictim][DEAD_LINE] = get_gametime();
 
-	create_fake_corpse(iVictim);
-
 	return HAM_IGNORED;
 }
 
@@ -442,7 +441,7 @@ public TaskSpawn(taskid)
 stock show_time_bar(oneper, percent, bar[])
 {
 	for(new i = 0; i < 30; i++)
-		bar[i] = ((i * oneper) < percent) ? ':' : '_';
+		bar[i] = ((i * oneper) < percent) ? '+' : '_';
 	bar[30] = '^0';
 }
 
@@ -463,47 +462,58 @@ public PlayerPostThink(id)
 	if (!is_user_connected(id))
 		return FMRES_IGNORED;
 
-	// has user revive kit?
-	if (!g_player_data[id][HAS_KIT])
-		return FMRES_IGNORED;
-
 	// is user dead?
 	// Player Die Finelize.
 	// + Show Delay Guage.
 	// + Respawn or Remove corpse.
+	if (g_player_data[id][DEADBODY_ID] == -1)
+	{
+		if(pev(id, pev_deadflag) == DEAD_DEAD)
+			create_fake_corpse(id);
+	}
 	if (!is_user_alive(id) && !g_player_data[id][IS_DEAD])
 	{
-		new Float:time = (get_gametime() - g_player_data[id][DEAD_LINE]);
-		new Float:remaining = 0.0;
-		new bar[31] = "";		
+		static Float:time; time = (get_gametime() - g_player_data[id][DEAD_LINE]);
+		static Float:remaining = 0.0;
+		static bar[31] = "";
+
 		// Hide Rescue icon.
 		msg_statusicon(id, ICON_HIDE);
 
-		if (g_cvars[RKIT_DEATH_TIME] > 0 && time < float(g_cvars[RKIT_DEATH_TIME]))
+		if (g_cvars[RKIT_DEATH_TIME] > 0)
 		{
-			if (!is_user_bot(id))
+			if (time < float(g_cvars[RKIT_DEATH_TIME]))
 			{
-				remaining = float(g_cvars[RKIT_DEATH_TIME]) - time;
-				show_time_bar(100 / GUAGE_MAX, floatround(remaining * 100.0 / float(g_cvars[RKIT_DEATH_TIME]), floatround_ceil), bar);
-				new timestr[6];
-				get_time_format(remaining, timestr, charsmax(timestr));
-				set_hudmessage(255, 0, 0, -1.00, -1.00, .effects= 0 , .fxtime = 0.0, .holdtime = 1.0, .fadeintime = 0.0, .fadeouttime = 0.0, .channel = -1);
-				ShowSyncHudMsg(id, g_sync_obj, "Possible resurrection time remaining: ^n%s^n[%s]", timestr, bar);
+				if (!is_user_bot(id))
+				{
+					remaining = float(g_cvars[RKIT_DEATH_TIME]) - time;
+					show_time_bar(100 / GUAGE_MAX, floatround(remaining * 100.0 / float(g_cvars[RKIT_DEATH_TIME]), floatround_ceil), bar);
+					new timestr[6];
+					get_time_format(remaining, timestr, charsmax(timestr));
+					set_hudmessage(255, 0, 0, -1.00, -1.00, .effects= 0 , .fxtime = 0.0, .holdtime = 1.0, .fadeintime = 0.0, .fadeouttime = 0.0, .channel = -1);
+					ShowSyncHudMsg(id, g_sync_obj, "Possible resurrection time remaining: ^n%s^n[%s]", timestr, bar);
+				}
+			}
+			else
+			{
+				g_player_data[id][IS_DEAD] = true;				
+				// deathmatch mode. auto respawn.
+				if(g_cvars[RKIT_DM_MODE])
+					ExecuteHamB(Ham_CS_RoundRespawn, id);
+				else 
+				{
+					remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[CORPSE]);
+					g_player_data[id][DEADBODY_ID] = -1;
+				}
 			}
 		}
-		else
-		{
-			g_player_data[id][IS_DEAD] = true;				
-			// deathmatch mode. auto respawn.
-			if(g_cvars[RKIT_DM_MODE])
-				ExecuteHamB(Ham_CS_RoundRespawn, id);
-			else
-				remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[CORPSE]);
-		}
-
 		return FMRES_IGNORED;
 	}
 	
+	// has user revive kit?
+	if (!g_player_data[id][HAS_KIT])
+		return FMRES_IGNORED;
+
 	new body = find_dead_body(id);
 	if(pev_valid(body))
 	{
@@ -514,7 +524,7 @@ public PlayerPostThink(id)
 
 		new CsTeams:lb_team  = cs_get_user_team(lucky_bastard);
 		new CsTeams:rev_team = cs_get_user_team(id);
-		if(lb_team == CS_TEAM_T || lb_team == CS_TEAM_CT && lb_team == rev_team)
+		if((lb_team == CS_TEAM_T || lb_team == CS_TEAM_CT) && lb_team == rev_team)
 			msg_statusicon(id, ICON_FLASH);
 	}
 	else
@@ -912,6 +922,8 @@ stock create_fake_corpse(id)
 		set_pev(ent, pev_sequence, 	sequence);
 		set_pev(ent, pev_frame, 	9999.9);
 		set_pev(ent, pev_flags, pev(ent, pev_flags) | FL_MONSTER);
+
+		g_player_data[id][DEADBODY_ID] = ent;
 	}	
 }
 
@@ -980,8 +992,8 @@ stock player_reset(id)
 	// if (is_user_alive(id))
 	// show_bartime(id, 0);
 
-	// g_player_data[id][IS_DEAD]		= false;
-	// g_player_data[id][IS_RESPAWNING]	= false;
+	g_player_data[id][IS_DEAD]		= false;
+	g_player_data[id][IS_RESPAWNING]= false;
 	g_player_data[id][DEAD_LINE]	= 0.0;
 	g_player_data[id][REVIVE_DELAY] = 0.0;
 	// g_player_data[id][WAS_DUCKING]	= false;
@@ -1007,6 +1019,7 @@ stock player_respawn_reset(id)
 	g_player_data[id][REVIVE_DELAY] = 0.0;
 	g_player_data[id][WAS_DUCKING]	= false;
 	g_player_data[id][BODY_ORIGIN]	= Float:{0, 0, 0};
+	g_player_data[id][DEADBODY_ID] = -1;
 }
 
 //====================================================
