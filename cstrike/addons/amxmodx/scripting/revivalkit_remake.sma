@@ -2,6 +2,7 @@
 #include <amxmisc>
 #include <cstrike>
 #include <fun>
+#include <engine>
 #include <fakemeta>
 #include <hamsandwich>
 #include <xs>
@@ -23,7 +24,7 @@ static const PLUGIN_VERSION	[]		= "1.000";
 
 // ===================================================
 // SELF REVIVE COMMAND.
-// #define DEBUG_MODE
+#define DEBUG_MODE
 // ===================================================
 
 
@@ -182,6 +183,7 @@ new g_cvars			[E_CVARS];
 new g_msg_data		[E_MESSAGES];
 new g_player_data	[MAX_PLAYERS + 1][E_PLAYER_DATA];
 new g_sync_obj;
+new g_entInfo;
 
 //====================================================
 //  PLUGIN PRECACHE
@@ -229,6 +231,8 @@ public plugin_init()
 	for(new i = 0; i < E_MESSAGES; i++)
 		g_msg_data[i] = get_user_msgid(MESSAGES[i]);
 	g_sync_obj = CreateHudSyncObj();
+
+	g_entInfo = engfunc(EngFunc_AllocString, ENTITY_CLASS_NAME[I_TARGET]);
 }
 
 // ====================================================
@@ -462,51 +466,69 @@ public PlayerPostThink(id)
 	if (!is_user_connected(id))
 		return FMRES_IGNORED;
 
+	// Team.
+	static CsTeams:rev_team; rev_team = cs_get_user_team(id);
+
 	// is user dead?
 	// Player Die Finelize.
 	// + Show Delay Guage.
 	// + Respawn or Remove corpse.
-	if (g_player_data[id][DEADBODY_ID] == -1)
+	// IS DEAD
+	if (!is_user_alive(id))
 	{
-		if(pev(id, pev_deadflag) == DEAD_DEAD)
-			create_fake_corpse(id);
-	}
-	if (!is_user_alive(id) && !g_player_data[id][IS_DEAD])
-	{
-		static Float:time; time = (get_gametime() - g_player_data[id][DEAD_LINE]);
-		static Float:remaining = 0.0;
-		static bar[31] = "";
-
 		// Hide Rescue icon.
 		msg_statusicon(id, ICON_HIDE);
 
-		if (g_cvars[RKIT_DEATH_TIME] > 0)
+		// CAN REVIVE
+		if (!g_player_data[id][IS_DEAD])
 		{
-			if (time < float(g_cvars[RKIT_DEATH_TIME]))
+			// Non Corpse? Create one.
+			if (g_player_data[id][DEADBODY_ID] == -1)
 			{
-				if (!is_user_bot(id))
+				if (rev_team == CS_TEAM_T || rev_team == CS_TEAM_CT)
+				if (pev(id, pev_deadflag) == DEAD_DEAD)
+					create_fake_corpse(id);
+			}
+
+			// Can revive time?
+			if (g_cvars[RKIT_DEATH_TIME] > 0)
+			{
+				static Float:time; time = (get_gametime() - g_player_data[id][DEAD_LINE]);
+				static Float:remaining = 0.0;
+				static bar[31] = "";
+				// show guage.
+				if (time < float(g_cvars[RKIT_DEATH_TIME]))
 				{
-					remaining = float(g_cvars[RKIT_DEATH_TIME]) - time;
-					show_time_bar(100 / GUAGE_MAX, floatround(remaining * 100.0 / float(g_cvars[RKIT_DEATH_TIME]), floatround_ceil), bar);
-					new timestr[6];
-					get_time_format(remaining, timestr, charsmax(timestr));
-					set_hudmessage(255, 0, 0, -1.00, -1.00, .effects= 0 , .fxtime = 0.0, .holdtime = 1.0, .fadeintime = 0.0, .fadeouttime = 0.0, .channel = -1);
-					ShowSyncHudMsg(id, g_sync_obj, "Possible resurrection time remaining: ^n%s^n[%s]", timestr, bar);
+					if (!is_user_bot(id))
+					{
+						remaining = float(g_cvars[RKIT_DEATH_TIME]) - time;
+						show_time_bar(100 / GUAGE_MAX, floatround(remaining * 100.0 / float(g_cvars[RKIT_DEATH_TIME]), floatround_ceil), bar);
+						new timestr[6];
+						get_time_format(remaining, timestr, charsmax(timestr));
+						set_hudmessage(255, 0, 0, -1.00, -1.00, .effects= 0 , .fxtime = 0.0, .holdtime = 1.0, .fadeintime = 0.0, .fadeouttime = 0.0, .channel = -1);
+						ShowSyncHudMsg(id, g_sync_obj, "Possible resurrection time remaining: ^n%s^n[%s]", timestr, bar);
+					}
+				}
+				else
+				{
+					// DEAD...
+					g_player_data[id][IS_DEAD] = true;				
+
+					// deathmatch mode. auto respawn.
+					if(g_cvars[RKIT_DM_MODE])
+						ExecuteHamB(Ham_CS_RoundRespawn, id);
 				}
 			}
-			else
-			{
-				g_player_data[id][IS_DEAD] = true;				
-				// deathmatch mode. auto respawn.
-				if(g_cvars[RKIT_DM_MODE])
-					ExecuteHamB(Ham_CS_RoundRespawn, id);
-				else 
-				{
-					remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[CORPSE]);
-					g_player_data[id][DEADBODY_ID] = -1;
-				}
-			}
+
+		} 
+		else
+		{
+			// DEAD.
+			// REMOVE CORPSE.
+			remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[CORPSE]);
+			g_player_data[id][DEADBODY_ID] = -1;
 		}
+
 		return FMRES_IGNORED;
 	}
 	
@@ -514,16 +536,15 @@ public PlayerPostThink(id)
 	if (!g_player_data[id][HAS_KIT])
 		return FMRES_IGNORED;
 
-	new body = find_dead_body(id);
+	static body; body = find_dead_body(id);
 	if(pev_valid(body))
 	{
-		new lucky_bastard = pev(body, pev_owner);
+		static lucky_bastard; lucky_bastard = pev(body, pev_owner);
 	
 		if(!is_user_connected(lucky_bastard))
 			return FMRES_IGNORED;
 
-		new CsTeams:lb_team  = cs_get_user_team(lucky_bastard);
-		new CsTeams:rev_team = cs_get_user_team(id);
+		static CsTeams:lb_team; lb_team = cs_get_user_team(lucky_bastard);
 		if((lb_team == CS_TEAM_T || lb_team == CS_TEAM_CT) && lb_team == rev_team)
 			msg_statusicon(id, ICON_FLASH);
 	}
@@ -538,6 +559,17 @@ public PlayerPostThink(id)
 // ====================================================
 public RKitTouch(kit, id)
 {
+	#if defined DEBUG_MODE
+	new class[32];
+	new flags;
+	pev(kit, pev_classname, class, 31);
+	if (equali(class, ENTITY_CLASS_NAME[CORPSE]))
+	{
+		set_pev(kit, pev_flags, pev(kit, pev_flags) | FL_KILLME);
+		dllfunc(DLLFunc_Think, kit);
+		server_print("TEST");
+	}
+	#endif
 	if(!pev_valid(kit))
 		return FMRES_IGNORED;
 	
@@ -547,7 +579,7 @@ public RKitTouch(kit, id)
 	new classname[32];
 	pev(kit, pev_classname, classname, 31);
 	
-	if(equal(classname, ENTITY_CLASS_NAME[R_KIT]))
+	if (equal(classname, ENTITY_CLASS_NAME[R_KIT]))
 	{
 		engfunc(EngFunc_RemoveEntity, kit);
 		g_player_data[id][HAS_KIT] = true;
@@ -907,10 +939,9 @@ stock create_fake_corpse(id)
 				
 	new sequence = pev(id, pev_sequence);
 	
-	new ent = cs_create_entity(ENTITY_CLASS_NAME[I_TARGET]);
+	new ent = engfunc(EngFunc_CreateNamedEntity, g_entInfo);
 	if(pev_valid(ent))
 	{
-		cs_set_ent_class(ent, ENTITY_CLASS_NAME[CORPSE]);
 		set_pev(ent, pev_classname, ENTITY_CLASS_NAME[CORPSE]);
 		engfunc(EngFunc_SetModel, 	ent, player_model);
 		engfunc(EngFunc_SetOrigin, 	ent, player_origin);
@@ -1103,7 +1134,7 @@ stock remove_target_entity_by_owner(id, className[])
 {
 	new iEnt = -1;
 	new flags;
-	while ((iEnt = cs_find_ent_by_owner(iEnt, className, id)) > 0)
+	while ((iEnt = engfunc(EngFunc_FindEntityByString, iEnt, "classname", className)) > 0)
 	{
 		if (pev_valid(iEnt))
 		{
@@ -1258,5 +1289,29 @@ stock find_dead_body_debug(id)
 			return ent;
 	}
 	return 0;
+}
+
+public ShowInfo(Float:vStart[3], Float:vEnd[3], Conditions, id, iTrace)
+{
+	static iHit, szName[MAX_NAME_LENGTH], iOwner;
+	static hudMsg[64];
+
+	iHit = get_tr2(iTrace, TR_pHit);
+	if (pev_valid(iHit))
+	{
+		pev(iHit, pev_classname, szName, charsmax(szName));
+
+		// if (equali(szName, "player")) 
+		{
+			iOwner = pev(iHit, pev_owner);
+
+			formatex(hudMsg, charsmax(hudMsg), "Class: %s, Owner: %n", szName, iOwner);
+			// set_hudmessage(red = 200, green = 100, blue = 0, Float:x = -1.0, Float:y = 0.35, effects = 0, Float:fxtime = 6.0, Float:holdtime = 12.0, Float:fadeintime = 0.1, Float:fadeouttime = 0.2, channel = -1)
+			set_hudmessage(50, 100, 150, -1.0, 0.60, 0, 6.0, 0.4, 0.0, 0.0, -1);
+			show_hudmessage(id, hudMsg);
+		}
+    }
+
+	return FMRES_IGNORED;
 }
 #endif
