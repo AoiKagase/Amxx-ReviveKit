@@ -24,7 +24,7 @@ static const PLUGIN_VERSION	[]		= "1.000";
 
 // ===================================================
 // SELF REVIVE COMMAND.
-#define DEBUG_MODE
+// #define DEBUG_MODE
 // ===================================================
 
 
@@ -485,9 +485,17 @@ public PlayerPostThink(id)
 			// Non Corpse? Create one.
 			if (g_player_data[id][DEADBODY_ID] == -1)
 			{
+				if (is_user_bot(id))
+				{
+					if (!g_cvars[RKIT_BOT_CAN_REVIVE])
+						return FMRES_IGNORED;
+				}
+
 				if (rev_team == CS_TEAM_T || rev_team == CS_TEAM_CT)
-				if (pev(id, pev_deadflag) == DEAD_DEAD)
-					create_fake_corpse(id);
+				{
+					if (pev(id, pev_deadflag) == DEAD_DEAD)
+						create_fake_corpse(id);
+				}
 			}
 
 			// Can revive time?
@@ -561,7 +569,6 @@ public RKitTouch(kit, id)
 {
 	#if defined DEBUG_MODE
 	new class[32];
-	new flags;
 	pev(kit, pev_classname, class, 31);
 	if (equali(class, ENTITY_CLASS_NAME[CORPSE]))
 	{
