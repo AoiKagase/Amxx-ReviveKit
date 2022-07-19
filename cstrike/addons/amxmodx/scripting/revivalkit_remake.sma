@@ -224,15 +224,18 @@ public plugin_init()
 	RegisterHamPlayer	(Ham_Spawn, 							"PlayerSpawn", 	.Post = true);
 
 	register_event_ex	("HLTV", 								"RoundStart", RegisterEvent_Global, "1=0", "2=0");
-	register_message 	(g_msg_data[MSG_CLCORPSE],				"message_clcorpse");
+
 	// Register Forward.
 	register_forward	(FM_CmdStart,		"PlayerCmdStart");
 
 	for(new i = 0; i < E_MESSAGES; i++)
 		g_msg_data[i] = get_user_msgid(MESSAGES[i]);
-	g_sync_obj = CreateHudSyncObj();
+
+	register_message 	(g_msg_data[MSG_CLCORPSE],				"message_clcorpse");
 
 	g_entInfo = engfunc(EngFunc_AllocString, ENTITY_CLASS_NAME[I_TARGET]);
+
+	g_sync_obj = CreateHudSyncObj();
 }
 
 // ====================================================
@@ -568,7 +571,6 @@ public RKitTouch(kit, id)
 	{
 		set_pev(kit, pev_flags, pev(kit, pev_flags) | FL_KILLME);
 		dllfunc(DLLFunc_Think, kit);
-		server_print("TEST");
 	}
 	#endif
 	if(!pev_valid(kit))
@@ -1139,15 +1141,13 @@ stock drop_rkit(id)
 stock remove_target_entity_by_owner(id, className[])
 {
 	new iEnt = -1;
-	new flags;
 	while ((iEnt = engfunc(EngFunc_FindEntityByString, iEnt, "classname", className)) > 0)
 	{
 		if (pev_valid(iEnt))
 		{
 			if (pev(iEnt, pev_owner) == id)
 			{
-				pev(iEnt, pev_flags, flags);
-				set_pev(iEnt, pev_flags, flags | FL_KILLME);
+				set_pev(iEnt, pev_flags, pev(iEnt, pev_flags) | FL_KILLME);
 				dllfunc(DLLFunc_Think, iEnt);
 			}
 		}
