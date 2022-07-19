@@ -404,13 +404,7 @@ public PlayerKilled(iVictim, iAttacker)
 public PlayerSpawn(id)
 {
 	if (g_player_data[id][IS_RESPAWNING])
-	{
-		// WeaponStrip
-		if (g_cvars[RKIT_RESPAWN_DROP])
-			strip_user_weapons(id);
-
 		set_task(0.1, "TaskOrigin",  TASKID_ORIGIN + id);
-	}
 	else 
 		player_respawn_reset(id);		
 
@@ -816,6 +810,7 @@ public TaskSetplayer(taskid)
 
 	if (!g_cvars[RKIT_RESPAWN_DROP])
 	{
+		// Recover the weapon you had just before.
 		while((entity = engfunc(EngFunc_FindEntityInSphere, entity, vOrigin, radius)) != 0)
 		{
 			if (pev_valid(entity))
@@ -826,6 +821,10 @@ public TaskSetplayer(taskid)
 				}
 			}
 		}
+	} else {
+		// WeaponStrip / Knives only.
+		strip_user_weapons(id);
+		give_item(id, "weapon_knife");
 	}
 
 	player_respawn_reset(id);
