@@ -313,7 +313,12 @@ public client_putinserver(id)
 		g_player_data[id][HAS_KIT] = true;
 	else
 		g_player_data[id][HAS_KIT] = false;
+
+	// Reset Parameters.
 	player_reset(id);
+
+	// Deter ghost respawning.
+	g_player_data[id][IS_DEAD] = true;
 }
 
 // ====================================================
