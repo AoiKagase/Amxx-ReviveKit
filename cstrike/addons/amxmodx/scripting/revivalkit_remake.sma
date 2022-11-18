@@ -712,6 +712,15 @@ public TaskRevive(taskid)
 			set_task(0.1, "TaskReSpawn", TASKID_RESPAWN + target);
 			remove_task(taskid);
 			client_print_color(id, print_chat, "^4[Revive Kit]:^1 %n revived successfully", target);
+
+			new iPlayers[MAX_PLAYERS];
+			new iPlnum, player;
+			get_players_ex(iPlayers, iPlnum, GetPlayers_MatchTeam, (cs_get_user_team(id) == CS_TEAM_CT) ? "CT" : "TERRORIST");
+			for (new i = 0; i < iPlnum; i++)
+			{
+				player = iPlayers[i];
+				client_print_color(player, print_chat, "^4[Revive Kit]:^1 %n has revived %n.", id, target);
+			}
 		}
 	}
 	return PLUGIN_CONTINUE;
