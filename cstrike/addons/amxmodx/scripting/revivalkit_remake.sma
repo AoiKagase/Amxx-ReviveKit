@@ -49,6 +49,7 @@ enum (+= 32)
 	TASKID_ORIGIN,
 	TASKID_SETUSER,
 	TASKID_SPAWN,
+	TASKID_HIDEBODY,
 };
 
 #define pev_zorigin					pev_fuser4
@@ -232,7 +233,7 @@ public plugin_init()
 		g_msg_data[i] = get_user_msgid(MESSAGES[i]);
 
 	register_message 	(g_msg_data[MSG_CLCORPSE],				"message_clcorpse");
-
+	set_msg_block(g_msg_data[MSG_CLCORPSE], BLOCK_SET);
 	g_entInfo = engfunc(EngFunc_AllocString, ENTITY_CLASS_NAME[I_TARGET]);
 
 	g_sync_obj = CreateHudSyncObj();
@@ -454,7 +455,7 @@ stock show_time_bar(oneper, percent, bar[])
 // ====================================================
 // Stop create default corpse.
 // ====================================================
-public message_clcorpse()
+public message_clcorpse(msgid, dst, entity)
 {
 	return PLUGIN_HANDLED;
 }
@@ -495,8 +496,13 @@ public PlayerPostThink(id)
 
 				if (rev_team == CS_TEAM_T || rev_team == CS_TEAM_CT)
 				{
-					if (pev(id, pev_deadflag) == DEAD_DEAD)
+					if (pev(id, pev_health) <= 0.0)
 						create_fake_corpse(id);
+
+					// if (pev(id, pev_deadflag) == DEAD_DEAD)
+					// {
+					// 	client_print_color(0, print_chat, "^4[Revive Kit]:^1 Timing of corpse creation.");
+					// }
 				}
 			}
 
@@ -932,8 +938,6 @@ stock bool:is_ent_visible(index, entity, ignoremonsters = 0)
 //====================================================
 stock create_fake_corpse(id)
 {
-	set_pev(id, pev_effects, EF_NODRAW);
-	
 	static model[32];
 	cs_get_user_model(id, model, 31);
 		
@@ -960,8 +964,17 @@ stock create_fake_corpse(id)
 	player_angles[2] = 0.0;
 				
 	new sequence = pev(id, pev_sequence);
+	new ent 	 = engfunc(EngFunc_CreateNamedEntity, g_entInfo);
+
+	static Float:frame; 	 	pev(id, pev_frame, frame);
+	static Float:framerate; 	pev(id, pev_framerate, framerate);
+	static Float:nextthink; 	pev(id, pev_nextthink, nextthink);
+	static Float:animtime;	 	pev(id, pev_animtime, animtime);
+	static Float:velocity[3];		pev(id, pev_velocity, velocity);
+	static Float:baseVelocity[3];	pev(id, pev_basevelocity, baseVelocity);
+	static Float:clbaseVelocity[3];	pev(id, pev_clbasevelocity, clbaseVelocity);
+	static Float:aVelocity[3];		pev(id, pev_avelocity, aVelocity);
 	
-	new ent = engfunc(EngFunc_CreateNamedEntity, g_entInfo);
 	if(pev_valid(ent))
 	{
 		set_pev(ent, pev_classname, ENTITY_CLASS_NAME[CORPSE]);
@@ -973,11 +986,27 @@ stock create_fake_corpse(id)
 		set_pev(ent, pev_owner, 	id);
 		set_pev(ent, pev_angles, 	player_angles);
 		set_pev(ent, pev_sequence, 	sequence);
-		set_pev(ent, pev_frame, 	9999.9);
-		set_pev(ent, pev_flags, pev(ent, pev_flags) | FL_MONSTER);
+		set_pev(ent, pev_frame, 	frame);
+		set_pev(ent, pev_framerate, framerate);
+		set_pev(ent, pev_animtime, 	animtime);
+		set_pev(ent, pev_velocity, 		velocity);
+		set_pev(ent, pev_basevelocity, 	baseVelocity);
+		set_pev(ent, pev_clbasevelocity,clbaseVelocity);
+		set_pev(ent, pev_avelocity, 	aVelocity);
 
+		set_pev(ent, pev_nextthink, nextthink);
+		set_pev(ent, pev_flags, pev(ent, pev_flags) | FL_MONSTER);
+		dllfunc(DLLFunc_Spawn, ent);
+		set_task(0.1, "HideBody", id + TASKID_HIDEBODY);
 		g_player_data[id][DEADBODY_ID] = ent;
 	}	
+}
+
+public HideBody(taskid)
+{
+	new id = taskid - TASKID_HIDEBODY;
+	set_pev(id, pev_effects, EF_NODRAW);
+	set_pev(id, pev_deadflag, pev(id, pev_deadflag) | DEAD_DEAD);
 }
 
 //====================================================
