@@ -75,6 +75,7 @@ enum _:E_SOUNDS
 enum _:E_MODELS
 {
 	R_KIT,
+//	SPR_CORPSE,
 };
 
 enum _:E_PLAYER_DATA
@@ -96,6 +97,7 @@ enum _:E_CLASS_NAME
 	PLAYER,
 	CORPSE,
 	R_KIT,
+	ENV_SPR,
 };
 
 enum _:E_MESSAGES
@@ -116,7 +118,8 @@ new const MESSAGES[E_MESSAGES][] =
 
 new const ENT_MODELS[E_MODELS][MAX_RESOURCE_PATH_LENGTH] = 
 {
-	"models/w_medkit.mdl"
+	"models/w_medkit.mdl",
+//	"sprites/revivalkit/skull.spr"
 };
 
 new const ENT_SOUNDS[E_SOUNDS][MAX_RESOURCE_PATH_LENGTH] = 
@@ -133,6 +136,7 @@ new const ENTITY_CLASS_NAME[E_CLASS_NAME][MAX_NAME_LENGTH] =
 	"player",
 	"fake_corpse",
 	"revival_kit",
+	"env_sprite",
 };
 
 enum _:E_CVARS
@@ -155,6 +159,7 @@ enum _:E_CVARS
 	RKIT_REVIVE_ATTEMPT,
 	RKIT_REVIVE_MOVELOCK,
 	RKIT_RESPAWN_DROP,
+	RKIT_CORPSE_STYLE,
 };
 
 new g_CVarString	[E_CVARS][][] =
@@ -177,6 +182,7 @@ new g_CVarString	[E_CVARS][][] =
 	{"rkit_revive_attempt",		"10",	"num"},
 	{"rkit_revive_move_lock",	"1",	"num"},
 	{"rkit_respawn_weaponstrip","0",	"num"},
+	{"rkit_corpse_style",		"0",	"num"},	// 0 = default corpse, 1 = skull sprites,
 };
 
 new g_cvarPointer	[E_CVARS];
@@ -184,7 +190,8 @@ new g_cvars			[E_CVARS];
 new g_msg_data		[E_MESSAGES];
 new g_player_data	[MAX_PLAYERS + 1][E_PLAYER_DATA];
 new g_sync_obj;
-new g_entInfo;
+new g_entInfo_m;
+new g_entInfo_s;
 
 //====================================================
 //  PLUGIN PRECACHE
@@ -234,7 +241,8 @@ public plugin_init()
 
 	register_message 	(g_msg_data[MSG_CLCORPSE],				"message_clcorpse");
 	set_msg_block(g_msg_data[MSG_CLCORPSE], BLOCK_SET);
-	g_entInfo = engfunc(EngFunc_AllocString, ENTITY_CLASS_NAME[I_TARGET]);
+	g_entInfo_m = engfunc(EngFunc_AllocString, ENTITY_CLASS_NAME[I_TARGET]);
+	g_entInfo_s = engfunc(EngFunc_AllocString, ENTITY_CLASS_NAME[ENV_SPR]);
 
 	g_sync_obj = CreateHudSyncObj();
 }
@@ -938,12 +946,6 @@ stock bool:is_ent_visible(index, entity, ignoremonsters = 0)
 //====================================================
 stock create_fake_corpse(id)
 {
-	static model[32];
-	cs_get_user_model(id, model, 31);
-		
-	static player_model[64];
-	formatex(player_model, 63, "models/player/%s/%s.mdl", model, model);
-			
 	static Float: player_origin[3];
 	pev(id, pev_origin, player_origin);
 		
@@ -962,51 +964,89 @@ stock create_fake_corpse(id)
 	static Float:player_angles[3];
 	pev(id, pev_angles, player_angles);
 	player_angles[2] = 0.0;
-				
-	new sequence = pev(id, pev_sequence);
-	new ent 	 = engfunc(EngFunc_CreateNamedEntity, g_entInfo);
 
-	static Float:frame; 	 	pev(id, pev_frame, frame);
-	static Float:framerate; 	pev(id, pev_framerate, framerate);
-	static Float:nextthink; 	pev(id, pev_nextthink, nextthink);
-	static Float:animtime;	 	pev(id, pev_animtime, animtime);
-	static Float:velocity[3];		pev(id, pev_velocity, velocity);
-	static Float:baseVelocity[3];	pev(id, pev_basevelocity, baseVelocity);
-	static Float:clbaseVelocity[3];	pev(id, pev_clbasevelocity, clbaseVelocity);
-	static Float:aVelocity[3];		pev(id, pev_avelocity, aVelocity);
-	
-	if(pev_valid(ent))
+	static ent;
+	// default corpse style	
+	if (!g_cvars[RKIT_CORPSE_STYLE])
 	{
-		set_pev(ent, pev_classname, ENTITY_CLASS_NAME[CORPSE]);
-		engfunc(EngFunc_SetModel, 	ent, player_model);
-		engfunc(EngFunc_SetOrigin, 	ent, player_origin);
-		engfunc(EngFunc_SetSize, 	ent, mins, maxs);
-		set_pev(ent, pev_solid, 	SOLID_TRIGGER);
-		set_pev(ent, pev_movetype, 	MOVETYPE_TOSS);
-		set_pev(ent, pev_owner, 	id);
-		set_pev(ent, pev_angles, 	player_angles);
-		set_pev(ent, pev_sequence, 	sequence);
-		set_pev(ent, pev_frame, 	frame);
-		set_pev(ent, pev_framerate, framerate);
-		set_pev(ent, pev_animtime, 	animtime);
-		set_pev(ent, pev_velocity, 		velocity);
-		set_pev(ent, pev_basevelocity, 	baseVelocity);
-		set_pev(ent, pev_clbasevelocity,clbaseVelocity);
-		set_pev(ent, pev_avelocity, 	aVelocity);
+		static model[32];
+		cs_get_user_model(id, model, 31);
+			
+		static player_model[64];
+		formatex(player_model, 63, "models/player/%s/%s.mdl", model, model);
 
-		set_pev(ent, pev_nextthink, nextthink);
-		set_pev(ent, pev_flags, pev(ent, pev_flags) | FL_MONSTER);
-		dllfunc(DLLFunc_Spawn, ent);
-		set_task(0.1, "HideBody", id + TASKID_HIDEBODY);
-		g_player_data[id][DEADBODY_ID] = ent;
-	}	
+		static sequence;
+		sequence = pev(id, pev_sequence);
+		ent = engfunc(EngFunc_CreateNamedEntity, g_entInfo_m);
+
+		static Float:frame; 	 		pev(id, pev_frame, frame);
+		static Float:framerate; 		pev(id, pev_framerate, framerate);
+		static Float:nextthink; 		pev(id, pev_nextthink, nextthink);
+		static Float:animtime;	 		pev(id, pev_animtime, animtime);
+		static Float:velocity[3];		pev(id, pev_velocity, velocity);
+		static Float:baseVelocity[3];	pev(id, pev_basevelocity, baseVelocity);
+		static Float:clbaseVelocity[3];	pev(id, pev_clbasevelocity, clbaseVelocity);
+		static Float:aVelocity[3];		pev(id, pev_avelocity, aVelocity);
+
+		if(pev_valid(ent))
+		{
+			set_pev(ent, pev_classname, ENTITY_CLASS_NAME[CORPSE]);
+			engfunc(EngFunc_SetModel, 	ent, player_model);
+			engfunc(EngFunc_SetOrigin, 	ent, player_origin);
+			engfunc(EngFunc_SetSize, 	ent, mins, maxs);
+			set_pev(ent, pev_solid, 	SOLID_TRIGGER);
+			set_pev(ent, pev_movetype, 	MOVETYPE_TOSS);
+			set_pev(ent, pev_owner, 	id);
+			set_pev(ent, pev_angles, 	player_angles);
+			set_pev(ent, pev_sequence, 	sequence);
+			set_pev(ent, pev_frame, 	frame);
+			set_pev(ent, pev_framerate, framerate);
+			set_pev(ent, pev_animtime, 	animtime);
+			set_pev(ent, pev_velocity, 		velocity);
+			set_pev(ent, pev_basevelocity, 	baseVelocity);
+			set_pev(ent, pev_clbasevelocity,clbaseVelocity);
+			set_pev(ent, pev_avelocity, 	aVelocity);
+
+			set_pev(ent, pev_nextthink, nextthink);
+			set_pev(ent, pev_flags, pev(ent, pev_flags) | FL_MONSTER);
+//			dllfunc(DLLFunc_Spawn, ent);
+		}	
+	}
+	else 
+	{
+		ent = engfunc(EngFunc_CreateNamedEntity, g_entInfo_s);
+
+		if(pev_valid(ent))
+		{
+			set_pev(ent, pev_classname, ENTITY_CLASS_NAME[CORPSE]);
+			engfunc(EngFunc_SetModel, 	ent, ENT_MODELS[SPR_CORPSE]);
+			engfunc(EngFunc_SetOrigin, 	ent, player_origin);
+			engfunc(EngFunc_SetSize, 	ent, mins, maxs);
+			set_pev(ent, pev_solid, 	SOLID_TRIGGER);
+			set_pev(ent, pev_movetype, 	MOVETYPE_FLY);
+			set_pev(ent, pev_owner, 	id);
+			set_pev(ent, pev_angles, 	player_angles);
+			set_pev(ent, pev_scale, 	0.1);
+			set_pev(ent, pev_framerate, 1.0);
+			set_pev(ent, pev_renderamt,	255.0);
+			set_pev(ent, pev_rendermode,kRenderTransTexture);
+			set_pev(ent, pev_spawnflags, SF_SPRITE_STARTON);
+//			set_pev(ent, pev_flags, pev(ent, pev_flags) | FL_MONSTER);
+			set_pev(ent, pev_frame, 	Float:(_:cs_get_user_team(id) - 1));
+			dllfunc(DLLFunc_Spawn, ent);
+		}	
+	}
+	g_player_data[id][DEADBODY_ID] = ent;
+	set_task(0.1, "HideBody", id + TASKID_HIDEBODY);
 }
 
 public HideBody(taskid)
 {
 	new id = taskid - TASKID_HIDEBODY;
-	set_pev(id, pev_effects, EF_NODRAW);
-	set_pev(id, pev_deadflag, pev(id, pev_deadflag) | DEAD_DEAD);
+	if (!g_cvars[RKIT_CORPSE_STYLE])
+		set_pev(id, pev_effects, EF_NODRAW);
+	else
+		set_pev(g_player_data[id][DEADBODY_ID], pev_frame, float(_:cs_get_user_team(id) - 1));
 }
 
 //====================================================
