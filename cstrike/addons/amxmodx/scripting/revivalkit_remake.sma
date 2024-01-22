@@ -75,7 +75,7 @@ enum _:E_SOUNDS
 enum _:E_MODELS
 {
 	R_KIT,
-//	SPR_CORPSE,
+	SPR_CORPSE,
 };
 
 enum _:E_PLAYER_DATA
@@ -119,7 +119,7 @@ new const MESSAGES[E_MESSAGES][] =
 new const ENT_MODELS[E_MODELS][MAX_RESOURCE_PATH_LENGTH] = 
 {
 	"models/w_medkit.mdl",
-//	"sprites/revivalkit/skull.spr"
+	"sprites/revivalkit/skull.spr",
 };
 
 new const ENT_SOUNDS[E_SOUNDS][MAX_RESOURCE_PATH_LENGTH] = 
@@ -227,10 +227,11 @@ public plugin_init()
 	register_cvars();
 
 	RegisterHam			(Ham_Touch,	ENTITY_CLASS_NAME[I_TARGET],"RKitTouch");
+	RegisterHam			(Ham_Think, ENTITY_CLASS_NAME[ENV_SPR], "CorpseThink", 0);
+//	register_think		(ENTITY_CLASS_NAME[ENV_SPR], 			"CorpseThink");
 	RegisterHamPlayer	(Ham_Killed,							"PlayerKilled");
 	RegisterHamPlayer	(Ham_Player_PostThink,					"PlayerPostThink");
 	RegisterHamPlayer	(Ham_Spawn, 							"PlayerSpawn", 	.Post = true);
-
 	register_event_ex	("HLTV", 								"RoundStart", RegisterEvent_Global, "1=0", "2=0");
 
 	// Register Forward.
@@ -1025,7 +1026,7 @@ stock create_fake_corpse(id)
 			set_pev(ent, pev_solid, 	SOLID_TRIGGER);
 			set_pev(ent, pev_movetype, 	MOVETYPE_FLY);
 			set_pev(ent, pev_owner, 	id);
-			set_pev(ent, pev_angles, 	player_angles);
+			set_pev(ent, pev_angles, 	{0.0, 0.0, 0.0});
 			set_pev(ent, pev_scale, 	0.1);
 			set_pev(ent, pev_framerate, 1.0);
 			set_pev(ent, pev_renderamt,	255.0);
@@ -1033,6 +1034,7 @@ stock create_fake_corpse(id)
 			set_pev(ent, pev_spawnflags, SF_SPRITE_STARTON);
 //			set_pev(ent, pev_flags, pev(ent, pev_flags) | FL_MONSTER);
 			set_pev(ent, pev_frame, 	Float:(_:cs_get_user_team(id) - 1));
+			set_pev(ent, pev_nextthink, get_gametime() + 0.3);
 			dllfunc(DLLFunc_Spawn, ent);
 		}	
 	}
@@ -1049,6 +1051,32 @@ public HideBody(taskid)
 		set_pev(g_player_data[id][DEADBODY_ID], pev_frame, float(_:cs_get_user_team(id) - 1));
 }
 
+public CorpseThink(iEnt)
+{
+	// Check plugin enabled.
+	if (!g_cvars[RKIT_CORPSE_STYLE])
+		return HAM_IGNORED;
+
+	// is valid this entity?
+	if (!pev_valid(iEnt))
+		return HAM_IGNORED;
+
+	new entityName[MAX_NAME_LENGTH];
+	pev(iEnt, pev_classname, entityName, charsmax(entityName));
+
+	// is this corpse sprite? no.
+	if (!equali(entityName, ENTITY_CLASS_NAME[CORPSE]))
+		return HAM_IGNORED;
+
+	static Float:vAngles[3];
+	pev(iEnt, pev_angles, vAngles);
+	vAngles[1] += 20.0;
+	vAngles[1] = (vAngles[1] >= 360.0) ? 0.0 : vAngles[1];
+	set_pev(iEnt, pev_angles, vAngles);
+	set_pev(iEnt, pev_nextthink, get_gametime() + 0.1);
+
+	return HAM_IGNORED;
+}
 //====================================================
 // Avoid Stuck.
 //====================================================
