@@ -1047,7 +1047,7 @@ stock create_fake_corpse(id)
 			set_pev(ent, pev_team, 				team);
 //			set_pev(ent, pev_flags, 			pev(ent, pev_flags) | FL_MONSTER);
 			set_pev(ent, pev_frame, 			Float:(_:cs_get_user_team(id) - 1));
-			set_pev(ent, pev_nextthink, 		get_gametime() + 0.3);
+			set_pev(ent, pev_nextthink, 		get_gametime() + 0.1);
 			dllfunc(DLLFunc_Spawn, ent);
 		}	
 	}
@@ -1065,7 +1065,8 @@ public HideBody(taskid)
 	if (!g_cvars[RKIT_CORPSE_STYLE])
 		set_pev(id, pev_effects, EF_NODRAW);
 	else
-		set_pev(g_player_data[id][DEADBODY_ID], pev_frame, float(_:cs_get_user_team(id) - 1));
+		if (pev_valid(g_player_data[id][DEADBODY_ID]))
+			set_pev(g_player_data[id][DEADBODY_ID], pev_frame, float(_:cs_get_user_team(id) - 1));
 }
 
 //====================================================
@@ -1106,10 +1107,10 @@ public PlayerAddToFullPack(es_handle, e, ent, host, hostflags, player, pSet)
 	if (!g_cvars[RKIT_CORPSE_STYLE])
 	 	return FMRES_IGNORED;
 
-	if (is_user_bot(host) || !is_user_alive(host))
+	if (player)
 	 	return FMRES_IGNORED;
 
-	if (player)
+	if (is_user_bot(host) || !is_user_alive(host))
 	 	return FMRES_IGNORED;
 
 	if (ent == host || !pev_valid(ent))
@@ -1117,6 +1118,7 @@ public PlayerAddToFullPack(es_handle, e, ent, host, hostflags, player, pSet)
 
 	static entityName[MAX_NAME_LENGTH];
 	pev(ent, pev_classname, entityName, charsmax(entityName));
+
 	// is this corpse sprite? no.
 	if (!equal(entityName, ENTITY_CLASS_NAME[CORPSE]))
 		return FMRES_IGNORED;
