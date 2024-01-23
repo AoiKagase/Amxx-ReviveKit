@@ -75,7 +75,8 @@ enum _:E_SOUNDS
 enum _:E_MODELS
 {
 	R_KIT,
-	SPR_CORPSE,
+	SPR_CORPSE_P,	// parallel
+	SPR_CORPSE_PO,	// parallel obtains
 };
 
 enum _:E_PLAYER_DATA
@@ -119,7 +120,8 @@ new const MESSAGES[E_MESSAGES][] =
 new const ENT_MODELS[E_MODELS][MAX_RESOURCE_PATH_LENGTH] = 
 {
 	"models/w_medkit.mdl",
-	"sprites/revivalkit/skull.spr",
+	"sprites/revivalkit/skull_p.spr",
+	"sprites/revivalkit/skull_po.spr",
 };
 
 new const ENT_SOUNDS[E_SOUNDS][MAX_RESOURCE_PATH_LENGTH] = 
@@ -160,29 +162,31 @@ enum _:E_CVARS
 	RKIT_REVIVE_MOVELOCK,
 	RKIT_RESPAWN_DROP,
 	RKIT_CORPSE_STYLE,
+	RKIT_ROLLING_MODE,
 };
 
 new g_CVarString	[E_CVARS][][] =
 {
-	{"rkit_health", 			"75",	"num"},	
-	{"rkit_cost",				"1200",	"num"},	
-	{"rkit_screen_fade",		"1",	"num"},	
-	{"rkit_screen_fade_time",	"2",	"num"},	
-	{"rkit_delay_revive",		"3",	"num"},	
-	{"rkit_delay_die",			"0",	"num"},	
-	{"rkit_deathmatch",			"0",	"num"},	
-	{"rkit_bot_has_kit",		"1",	"num"},	
-	{"rkit_bot_can_revive",		"1",	"num"},
-	{"rkit_buy_mode",			"1",	"num"},
-	{"rkit_buy_zone",			"1",	"num"},
-	{"rkit_distance",			"70.0",	"float"},
-	{"rkit_check_obstacle",		"1",	"num"},
-	{"rkit_reward",				"150",	"num"},
-	{"rkit_revive_radius",		"10.0",	"float"},
-	{"rkit_revive_attempt",		"10",	"num"},
-	{"rkit_revive_move_lock",	"1",	"num"},
-	{"rkit_respawn_weaponstrip","0",	"num"},
-	{"rkit_corpse_style",		"0",	"num"},	// 0 = default corpse, 1 = skull sprites,
+	{"rkit_health", 				"75",	"num"},	
+	{"rkit_cost",					"1200",	"num"},	
+	{"rkit_screen_fade",			"1",	"num"},	
+	{"rkit_screen_fade_time",		"2",	"num"},	
+	{"rkit_delay_revive",			"3",	"num"},	
+	{"rkit_delay_die",				"0",	"num"},	
+	{"rkit_deathmatch",				"0",	"num"},	
+	{"rkit_bot_has_kit",			"1",	"num"},	
+	{"rkit_bot_can_revive",			"1",	"num"},
+	{"rkit_buy_mode",				"1",	"num"},
+	{"rkit_buy_zone",				"1",	"num"},
+	{"rkit_distance",				"70.0",	"float"},
+	{"rkit_check_obstacle",			"1",	"num"},
+	{"rkit_reward",					"150",	"num"},
+	{"rkit_revive_radius",			"10.0",	"float"},
+	{"rkit_revive_attempt",			"10",	"num"},
+	{"rkit_revive_move_lock",		"1",	"num"},
+	{"rkit_respawn_weaponstrip",	"0",	"num"},
+	{"rkit_corpse_style",			"0",	"num"},	// 0 = default corpse, 1 = skull sprites,
+	{"rkit_sprite_rotation_speed",	"0",	"num"}, // 0 = parallel, 1 = parallel obtains. rolling mode.
 };
 
 new g_cvarPointer	[E_CVARS];
@@ -1024,7 +1028,14 @@ stock create_fake_corpse(id)
 		if(pev_valid(ent))
 		{
 			set_pev(ent, pev_classname, 		ENTITY_CLASS_NAME[CORPSE]);
-			engfunc(EngFunc_SetModel, 			ent, ENT_MODELS[SPR_CORPSE]);
+			switch (g_cvars[RKIT_ROLLING_MODE]) {
+				case 0:
+					engfunc(EngFunc_SetModel, 	ent, ENT_MODELS[SPR_CORPSE_P]);
+				case 1:
+					engfunc(EngFunc_SetModel, 	ent, ENT_MODELS[SPR_CORPSE_PO]);
+				default:
+					engfunc(EngFunc_SetModel, 	ent, ENT_MODELS[SPR_CORPSE_P]);
+			}
 			engfunc(EngFunc_SetOrigin, 			ent, player_origin);
 			engfunc(EngFunc_SetSize, 			ent, mins, maxs);
 			set_pev(ent, pev_solid, 			SOLID_TRIGGER);
@@ -1066,7 +1077,7 @@ public HideBody(taskid)
 public CorpseThink(iEnt)
 {
 	// Check plugin enabled.
-	if (!g_cvars[RKIT_CORPSE_STYLE])
+	if (!g_cvars[RKIT_CORPSE_STYLE] && !g_cvars[RKIT_ROLLING_MODE])
 		return HAM_IGNORED;
 
 	// is valid this entity?
@@ -1085,7 +1096,7 @@ public CorpseThink(iEnt)
 	vAngles[1] += 20.0;
 	vAngles[1] = (vAngles[1] >= 360.0) ? 0.0 : vAngles[1];
 	set_pev(iEnt, pev_angles, vAngles);
-	set_pev(iEnt, pev_nextthink, get_gametime() + 0.1);
+	set_pev(iEnt, pev_nextthink, get_gametime() + (0.1 / g_cvars[RKIT_ROLLING_MODE]));
 
 	return HAM_IGNORED;
 }
