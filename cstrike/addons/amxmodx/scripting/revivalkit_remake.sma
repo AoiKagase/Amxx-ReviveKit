@@ -76,7 +76,7 @@ enum _:E_MODELS
 {
 	R_KIT,
 	SPR_CORPSE_P,	// parallel
-	SPR_CORPSE_PO,	// parallel obtains
+	SPR_CORPSE_O,	// obtains
 };
 
 enum _:E_PLAYER_DATA
@@ -121,7 +121,7 @@ new const ENT_MODELS[E_MODELS][MAX_RESOURCE_PATH_LENGTH] =
 {
 	"models/w_medkit.mdl",
 	"sprites/revivalkit/skull_p.spr",
-	"sprites/revivalkit/skull_po.spr",
+	"sprites/revivalkit/skull_o.spr",
 };
 
 new const ENT_SOUNDS[E_SOUNDS][MAX_RESOURCE_PATH_LENGTH] = 
@@ -1028,14 +1028,11 @@ stock create_fake_corpse(id)
 		if(pev_valid(ent))
 		{
 			set_pev(ent, pev_classname, 		ENTITY_CLASS_NAME[CORPSE]);
-			switch (g_cvars[RKIT_ROLLING_MODE]) {
-				case 0:
-					engfunc(EngFunc_SetModel, 	ent, ENT_MODELS[SPR_CORPSE_P]);
-				case 1:
-					engfunc(EngFunc_SetModel, 	ent, ENT_MODELS[SPR_CORPSE_PO]);
-				default:
-					engfunc(EngFunc_SetModel, 	ent, ENT_MODELS[SPR_CORPSE_P]);
-			}
+			if (g_cvars[RKIT_ROLLING_MODE] == 0)
+				engfunc(EngFunc_SetModel, 	ent, ENT_MODELS[SPR_CORPSE_P]);
+			else
+				engfunc(EngFunc_SetModel, 	ent, ENT_MODELS[SPR_CORPSE_O]);
+
 			engfunc(EngFunc_SetOrigin, 			ent, player_origin);
 			engfunc(EngFunc_SetSize, 			ent, mins, maxs);
 			set_pev(ent, pev_solid, 			SOLID_TRIGGER);
@@ -1077,7 +1074,7 @@ public HideBody(taskid)
 public CorpseThink(iEnt)
 {
 	// Check plugin enabled.
-	if (!g_cvars[RKIT_CORPSE_STYLE] && !g_cvars[RKIT_ROLLING_MODE])
+	if (!g_cvars[RKIT_CORPSE_STYLE] || !g_cvars[RKIT_ROLLING_MODE])
 		return HAM_IGNORED;
 
 	// is valid this entity?
@@ -1109,20 +1106,25 @@ public PlayerAddToFullPack(es_handle, e, ent, host, hostflags, player, pSet)
 	if (!g_cvars[RKIT_CORPSE_STYLE])
 	 	return FMRES_IGNORED;
 
-	if(!player)
+	if (is_user_bot(host) || !is_user_alive(host))
 	 	return FMRES_IGNORED;
-	
-	new entityName[MAX_NAME_LENGTH];
-	pev(ent, pev_classname, entityName, charsmax(entityName));
 
+	if (player)
+	 	return FMRES_IGNORED;
+
+	if (ent == host || !pev_valid(ent))
+	 	return FMRES_IGNORED;
+
+	static entityName[MAX_NAME_LENGTH];
+	pev(ent, pev_classname, entityName, charsmax(entityName));
 	// is this corpse sprite? no.
-	if (!equali(entityName, ENTITY_CLASS_NAME[CORPSE]))
-		return HAM_IGNORED;
+	if (!equal(entityName, ENTITY_CLASS_NAME[CORPSE]))
+		return FMRES_IGNORED;
 
 	if (_:cs_get_user_team(host) != pev(ent, pev_team))
 		set_es(es_handle, ES_Effects, EF_NODRAW);
 
- 	return FMRES_IGNORED;
+	return FMRES_IGNORED;
 }
 
 //====================================================
