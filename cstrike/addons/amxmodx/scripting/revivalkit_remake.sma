@@ -1089,6 +1089,7 @@ public CorpseThink(iEnt)
 	if (!equali(entityName, ENTITY_CLASS_NAME[CORPSE]))
 		return HAM_IGNORED;
 
+	// Rolling.
 	static Float:vAngles[3];
 	pev(iEnt, pev_angles, vAngles);
 	vAngles[1] += 20.0;
@@ -1104,27 +1105,38 @@ public CorpseThink(iEnt)
 //====================================================
 public PlayerAddToFullPack(es_handle, e, ent, host, hostflags, player, pSet)
 {
+	// Check cvar settings.
 	if (!g_cvars[RKIT_CORPSE_STYLE])
 	 	return FMRES_IGNORED;
 
+	// Ignore Player.
 	if (player)
 	 	return FMRES_IGNORED;
 
+	// Ignore bot or dead player.
 	if (is_user_bot(host) || !is_user_alive(host))
 	 	return FMRES_IGNORED;
 
+	// Ignore host or invalid entity.
 	if (ent == host || !pev_valid(ent))
 	 	return FMRES_IGNORED;
 
 	static entityName[MAX_NAME_LENGTH];
 	pev(ent, pev_classname, entityName, charsmax(entityName));
 
-	// is this corpse sprite? no.
+	// Ignore not corpse sprite.
 	if (!equal(entityName, ENTITY_CLASS_NAME[CORPSE]))
 		return FMRES_IGNORED;
 
+	// Check other team.
 	if (_:cs_get_user_team(host) != pev(ent, pev_team))
-		set_es(es_handle, ES_Effects, EF_NODRAW);
+	{
+		static bitEffects;
+		bitEffects = get_es(es_handle, ES_Effects) & EF_NODRAW;
+		// Check already hide.
+		if (!bitEffects)
+			set_es(es_handle, ES_Effects, EF_NODRAW);
+	}
 
 	return FMRES_IGNORED;
 }
