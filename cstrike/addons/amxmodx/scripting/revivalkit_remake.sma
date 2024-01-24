@@ -1119,24 +1119,7 @@ public CorpseThink(iEnt)
 //====================================================
 public PlayerAddToFullPack(es_handle, e, ent, host, hostflags, player, pSet)
 {
-<<<<<<< Updated upstream
-	// Check cvar settings.
-	if (!g_cvars[RKIT_CORPSE_STYLE])
-	 	return FMRES_IGNORED;
-
-	// Ignore Player.
-	if (player)
-	 	return FMRES_IGNORED;
-
-	// Ignore bot or dead player.
-	if (is_user_bot(host) || !is_user_alive(host))
-	 	return FMRES_IGNORED;
-
-	// Ignore host or invalid entity.
-	if (ent == host || !pev_valid(ent))
-=======
 	if (!g_cvars[RKIT_CORPSE_STYLE] || player || IsUserBot(host) || !IsUserAlive(host) || !pev_valid(ent) || ent == host)
->>>>>>> Stashed changes
 	 	return FMRES_IGNORED;
 
 	static entityName[MAX_NAME_LENGTH];
