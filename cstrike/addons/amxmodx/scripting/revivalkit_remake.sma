@@ -198,11 +198,31 @@ new g_entInfo_m;
 new g_entInfo_s;
 new g_bIsUserBot 	= 0;
 new g_bIsUserAlive 	= 0;
+#define is_valid_player(%1) (1 <= %1 <= 32)
 
-stock IsUserBot(id)	{ return (g_bIsUserBot & (1 << id)); }
-stock SetUserBot(id, bool:bot) { ((bot) ? (g_bIsUserBot |= (1 << id)) : (g_bIsUserBot &= ~(1 << id))); }
-stock IsUserAlive(id) { return (g_bIsUserAlive & (1 << id)); }
-stock SetUserAlive(id, bool:alive) { ((alive) ? (g_bIsUserAlive |= (1 << id)) : (g_bIsUserAlive &= ~(1 << id))); }
+stock IsUserBot(id)	
+{ 
+	return (is_valid_player(id) && (g_bIsUserBot & (1 << id))); 
+}
+stock SetUserBot(id, bool:bot) 
+{ 
+	if (is_valid_player(id))
+		((bot) ? (g_bIsUserBot |= (1 << id)) : (g_bIsUserBot &= ~(1 << id))); 
+	else
+		(g_bIsUserBot &= ~(1 << id));
+}
+stock IsUserAlive(id) 
+{
+	return (is_valid_player(id) && (g_bIsUserAlive & (1 << id)));
+}
+stock SetUserAlive(id, bool:alive) 
+{
+	if (is_valid_player(id))
+		((alive) ? (g_bIsUserAlive |= (1 << id)) : (g_bIsUserAlive &= ~(1 << id))); 
+	else
+		g_bIsUserAlive &= ~(1 << id);
+}
+
 //====================================================
 //  PLUGIN PRECACHE
 //====================================================
@@ -1119,7 +1139,7 @@ public CorpseThink(iEnt)
 //====================================================
 public PlayerAddToFullPack(es_handle, e, ent, host, hostflags, player, pSet)
 {
-	if (!g_cvars[RKIT_CORPSE_STYLE] || player || IsUserBot(host) || !IsUserAlive(host) || !pev_valid(ent) || ent == host)
+	if (!g_cvars[RKIT_CORPSE_STYLE] || player || !get_orig_retval() || IsUserBot(host) || !IsUserAlive(host))
 	 	return FMRES_IGNORED;
 
 	static entityName[MAX_NAME_LENGTH];
