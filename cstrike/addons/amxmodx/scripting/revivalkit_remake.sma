@@ -196,7 +196,13 @@ new g_player_data	[MAX_PLAYERS + 1][E_PLAYER_DATA];
 new g_sync_obj;
 new g_entInfo_m;
 new g_entInfo_s;
+new g_bIsUserBot 	= 0;
+new g_bIsUserAlive 	= 0;
 
+stock IsUserBot(id)	{ return (g_bIsUserBot & (1 << id)); }
+stock SetUserBot(id, bool:bot) { ((bot) ? (g_bIsUserBot |= (1 << id)) : (g_bIsUserBot &= ~(1 << id))); }
+stock IsUserAlive(id) { return (g_bIsUserAlive & (1 << id)); }
+stock SetUserAlive(id, bool:alive) { ((alive) ? (g_bIsUserAlive |= (1 << id)) : (g_bIsUserAlive &= ~(1 << id))); }
 //====================================================
 //  PLUGIN PRECACHE
 //====================================================
@@ -303,9 +309,7 @@ new g_bots_registered = false;
 public client_authorized( id )
 {
 	if( !g_bots_registered && is_user_bot( id ) )
-	{
 		set_task( 0.1, "register_bots", id );
-	}
 }
 
 public register_bots( id )
@@ -327,6 +331,11 @@ public client_putinserver(id)
 		g_player_data[id][HAS_KIT] = true;
 	else
 		g_player_data[id][HAS_KIT] = false;
+
+	if (is_user_bot(id))
+		SetUserBot(id, true);
+	else
+		SetUserBot(id, false);
 
 	// Reset Parameters.
 	player_reset(id);
@@ -356,7 +365,7 @@ public CmdBuyRKit(id)
 		return PLUGIN_HANDLED;
 	}
 
-	if(!is_user_alive(id))
+	if(!IsUserAlive(id))
 		client_print_color(id, print_chat, "^4[Revive Kit]:^1 You need to be alive.");
 	else if(g_player_data[id][HAS_KIT])
 		client_print_color(id, print_chat, "^4[Revive Kit]:^1 You already have a revival kit.");
@@ -382,9 +391,10 @@ public CmdBuyRKit(id)
 // ====================================================
 public PlayerKilled(iVictim, iAttacker)
 {
-	if (!is_user_connected(iVictim) || is_user_alive(iVictim))
+	if (!is_user_connected(iVictim))
 		return HAM_IGNORED;
 
+	SetUserAlive(iVictim, false);
 	player_reset(iVictim);
 
 	// Get Aim Vector.
@@ -399,7 +409,7 @@ public PlayerKilled(iVictim, iAttacker)
 		}
 	}
 
-	if (is_user_bot(iVictim))
+	if (IsUserBot(iVictim))
 	{
 		if (!g_cvars[RKIT_BOT_CAN_REVIVE])
 			return HAM_IGNORED;
@@ -425,6 +435,8 @@ public PlayerKilled(iVictim, iAttacker)
 // ====================================================
 public PlayerSpawn(id)
 {
+	SetUserAlive(id, true);
+
 	if (g_player_data[id][IS_RESPAWNING])
 		set_task(0.1, "TaskOrigin",  TASKID_ORIGIN + id);
 	else 
@@ -445,7 +457,7 @@ public TaskSpawn(taskid)
 {
 	new id = taskid - TASKID_SPAWN;
 
-	if (!is_user_alive(id))
+	if (!IsUserAlive(id))
 		return;
 
 	remove_target_entity_by_owner(id, ENTITY_CLASS_NAME[CORPSE]);
@@ -490,7 +502,7 @@ public PlayerPostThink(id)
 	// + Show Delay Guage.
 	// + Respawn or Remove corpse.
 	// IS DEAD
-	if (!is_user_alive(id))
+	if (!IsUserAlive(id))
 	{
 		// Hide Rescue icon.
 		msg_statusicon(id, ICON_HIDE);
@@ -501,7 +513,7 @@ public PlayerPostThink(id)
 			// Non Corpse? Create one.
 			if (g_player_data[id][DEADBODY_ID] == -1)
 			{
-				if (is_user_bot(id))
+				if (IsUserBot(id))
 				{
 					if (!g_cvars[RKIT_BOT_CAN_REVIVE])
 						return FMRES_IGNORED;
@@ -528,7 +540,7 @@ public PlayerPostThink(id)
 				// show guage.
 				if (time < float(g_cvars[RKIT_DEATH_TIME]))
 				{
-					if (!is_user_bot(id))
+					if (!IsUserBot(id))
 					{
 						remaining = float(g_cvars[RKIT_DEATH_TIME]) - time;
 						show_time_bar(100 / GUAGE_MAX, floatround(remaining * 100.0 / float(g_cvars[RKIT_DEATH_TIME]), floatround_ceil), bar);
@@ -600,7 +612,7 @@ public RKitTouch(kit, id)
 	if(!pev_valid(kit))
 		return FMRES_IGNORED;
 	
-	if(!is_user_alive(id) || g_player_data[id][HAS_KIT])
+	if(!IsUserAlive(id) || g_player_data[id][HAS_KIT])
 		return FMRES_IGNORED;
 	
 	new classname[32];
@@ -621,7 +633,7 @@ public RKitTouch(kit, id)
 public PlayerCmdStart(id, handle, random_seed)
 {
 	// Not alive
-	if(!is_user_alive(id))
+	if(!IsUserAlive(id))
 		return FMRES_IGNORED;
 
 	// Get user old and actual buttons
@@ -763,7 +775,7 @@ public TaskReSpawn(taskid)
 	ExecuteHamB(Ham_CS_RoundRespawn, id);
 	//	set_task(0.1, "TaskCheckReSpawn", TASKID_CHECKRE + id);
 
-	if (!is_user_bot(id))
+	if (!IsUserBot(id))
 	{
 		if (g_cvars[RKIT_SC_FADE])
 		{
@@ -870,7 +882,7 @@ public TaskSetplayer(taskid)
 //====================================================
 stock bool:can_target_revive(id, &target, &body)
 {
-	if(!is_user_alive(id))
+	if(!IsUserAlive(id))
 		return false;
 	
 	body = find_dead_body(id);
@@ -951,6 +963,8 @@ stock bool:is_ent_visible(index, entity, ignoremonsters = 0)
 //====================================================
 stock create_fake_corpse(id)
 {
+	SetUserAlive(id, false);
+
 	static Float: player_origin[3];
 	pev(id, pev_origin, player_origin);
 		
@@ -1105,6 +1119,7 @@ public CorpseThink(iEnt)
 //====================================================
 public PlayerAddToFullPack(es_handle, e, ent, host, hostflags, player, pSet)
 {
+<<<<<<< Updated upstream
 	// Check cvar settings.
 	if (!g_cvars[RKIT_CORPSE_STYLE])
 	 	return FMRES_IGNORED;
@@ -1119,6 +1134,9 @@ public PlayerAddToFullPack(es_handle, e, ent, host, hostflags, player, pSet)
 
 	// Ignore host or invalid entity.
 	if (ent == host || !pev_valid(ent))
+=======
+	if (!g_cvars[RKIT_CORPSE_STYLE] || player || IsUserBot(host) || !IsUserAlive(host) || !pev_valid(ent) || ent == host)
+>>>>>>> Stashed changes
 	 	return FMRES_IGNORED;
 
 	static entityName[MAX_NAME_LENGTH];
@@ -1203,15 +1221,11 @@ stock player_reset(id)
 	remove_task(TASKID_CHECKST   + id);
 	remove_task(TASKID_ORIGIN    + id);
 	remove_task(TASKID_SETUSER   + id);
-	// if (is_user_alive(id))
-	// show_bartime(id, 0);
 
 	g_player_data[id][IS_DEAD]		= false;
 	g_player_data[id][IS_RESPAWNING]= false;
 	g_player_data[id][DEAD_LINE]	= 0.0;
 	g_player_data[id][REVIVE_DELAY] = 0.0;
-	// g_player_data[id][WAS_DUCKING]	= false;
-	// g_player_data[id][BODY_ORIGIN]	= Float:{0, 0, 0};
 }
 
 //====================================================
@@ -1241,10 +1255,10 @@ stock player_respawn_reset(id)
 //====================================================
 stock show_progress(id, seconds) 
 {
-	if(is_user_bot(id))
+	if(IsUserBot(id))
 		return;
 	
-	if (is_user_alive(id))
+	if (IsUserAlive(id))
 	{
 		engfunc(EngFunc_MessageBegin, MSG_ONE, g_msg_data[MSG_BARTIME], {0,0,0}, id);
 		write_short(seconds);
@@ -1260,7 +1274,7 @@ stock show_progress(id, seconds)
 //====================================================
 stock msg_statusicon(id, status)
 {
-	if(is_user_bot(id))
+	if(IsUserBot(id))
 		return;
 	
 	message_begin(MSG_ONE, g_msg_data[MSG_STATUS_ICON], _, id);
