@@ -198,7 +198,15 @@ new g_entInfo_m;
 new g_entInfo_s;
 new g_bIsUserBot 	= 0;
 new g_bIsUserAlive 	= 0;
-#define is_valid_player(%1) (1 <= %1 <= 32)
+
+#define is_valid_player(%1) 	(1 <= %1 <= 32)
+#define bitarray_max(%1) 		(%1 >> 5)
+#define bitarray_set(%1,%2) 	(%1[%2>>5] |= (1<<(%2 & 31)))
+#define bitarray_clear(%1,%2) 	(%1[%2>>5] &= ~(1<<(%2 & 31)))
+#define bitarray_reset(%1) 		arrayset(%1, 0, sizeof(%1))
+#define bitarray_check(%1,%2) 	(%1[%2>>5] & (1<<(%2 & 31)))
+
+new g_baTeamSprites[bitarray_max(4096) + 1];
 
 stock IsUserBot(id)	
 { 
@@ -222,7 +230,16 @@ stock SetUserAlive(id, bool:alive)
 	else
 		g_bIsUserAlive &= ~(1 << id);
 }
-
+stock CreateSprite(iEnt)
+{
+	RemoveSprite(iEnt);
+	if (pev_valid(iEnt))
+		bitarray_set(g_baTeamSprites, iEnt);
+}
+stock RemoveSprite(iEnt)
+{
+	bitarray_clear(g_baTeamSprites, iEnt);
+}
 //====================================================
 //  PLUGIN PRECACHE
 //====================================================
@@ -1086,6 +1103,7 @@ stock create_fake_corpse(id)
 		}	
 	}
 	g_player_data[id][DEADBODY_ID] = ent;
+	CreateSprite(ent);
 	set_task(0.1, "HideBody", id + TASKID_HIDEBODY);
 }
 
@@ -1142,21 +1160,18 @@ public PlayerAddToFullPack(es_handle, e, ent, host, hostflags, player, pSet)
 	if (!g_cvars[RKIT_CORPSE_STYLE] || player || !get_orig_retval() || IsUserBot(host) || !IsUserAlive(host))
 	 	return FMRES_IGNORED;
 
-	static entityName[MAX_NAME_LENGTH];
-	pev(ent, pev_classname, entityName, charsmax(entityName));
-
-	// Ignore not corpse sprite.
-	if (!equal(entityName, ENTITY_CLASS_NAME[CORPSE]))
-		return FMRES_IGNORED;
-
-	// Check other team.
-	if (_:cs_get_user_team(host) != pev(ent, pev_team))
+	// is sprite
+	if (bitarray_check(g_baTeamSprites, ent))
 	{
-		static bitEffects;
-		bitEffects = get_es(es_handle, ES_Effects) & EF_NODRAW;
-		// Check already hide.
-		if (!bitEffects)
-			set_es(es_handle, ES_Effects, EF_NODRAW);
+		// Check other team.
+		if (_:cs_get_user_team(host) != pev(ent, pev_team))
+		{
+			static bitEffects;
+			bitEffects = get_es(es_handle, ES_Effects) & EF_NODRAW;
+			// Check already hide.
+			if (!bitEffects)
+				set_es(es_handle, ES_Effects, EF_NODRAW);
+		}
 	}
 
 	return FMRES_IGNORED;
@@ -1340,6 +1355,8 @@ stock remove_target_entity_by_owner(id, className[])
 			if (pev(iEnt, pev_owner) == id)
 			{
 				set_pev(iEnt, pev_flags, pev(iEnt, pev_flags) | FL_KILLME);
+				if(bitarray_check(g_baTeamSprites, iEnt))
+					RemoveSprite(iEnt);
 				dllfunc(DLLFunc_Think, iEnt);
 			}
 		}
@@ -1352,13 +1369,13 @@ stock remove_target_entity_by_owner(id, className[])
 stock remove_target_entity_by_classname(className[])
 {
 	new iEnt = -1;
-	new flags;
 	while ((iEnt = cs_find_ent_by_class(iEnt, className)) > 0)
 	{
 		if (pev_valid(iEnt))
 		{
-			pev(iEnt, pev_flags, flags);
-			set_pev(iEnt, pev_flags, flags | FL_KILLME);
+			set_pev(iEnt, pev_flags, pev(iEnt, pev_flags) | FL_KILLME);
+			if(bitarray_check(g_baTeamSprites, iEnt))
+				RemoveSprite(iEnt);
 			dllfunc(DLLFunc_Think, iEnt);
 		}
 	}
