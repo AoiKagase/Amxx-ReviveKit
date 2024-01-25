@@ -24,3 +24,10 @@ https://forums.alliedmods.net/showthread.php?p=252625
 | `rkit_revive_attempt` | 10 | Number of times the revive point is calculated |
 | `rkit_revive_move_lock` | 1 | Locked movement during resuscitation |
 | `rkit_respawn_weaponstrip` | 0 | Discard all weapons upon resurrection (surrounding weapons are picked up, so only the main arm is left). |
+
+## Credits
+#### Coding support.
++ Th3-822
++ Other Discord member.
+#### Debugger / Issuer
++ ArkProcession
