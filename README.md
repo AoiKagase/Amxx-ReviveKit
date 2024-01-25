@@ -26,8 +26,10 @@ https://forums.alliedmods.net/showthread.php?p=252625
 | `rkit_respawn_weaponstrip` | 0 | Discard all weapons upon resurrection (surrounding weapons are picked up, so only the main arm is left). |
 
 ## Credits
+#### Genuine Article.
++ Cheap_Suit
 #### Coding support.
 + Th3-822
 + Other Discord member.
-#### Debugger / Issuer
+#### Debugger / Issuer.
 + ArkProcession
