@@ -1205,7 +1205,7 @@ stock bool:findemptyloc(ent, Float:radius)
 			
 			origin[0] += random_float(-radius, radius);
 			origin[1] += random_float(-radius, radius);
-			origin[2] += random_float(-radius, radius);
+			origin[2] += random_float(0.1, radius);
 			
 			num++;
 		}
