@@ -955,15 +955,26 @@ stock find_dead_body(id)
 	pev(id, pev_origin, origin);
 	
 	new ent = -1;
+	new Float:length = 99999.0;
+	new Float:tmpLength = 0.0;
+	new tmpEnt = -1;
 	while((ent = engfunc(EngFunc_FindEntityInSphere, ent, origin, g_cvars[RKIT_DISTANCE])) != 0)
 	{
 		if (!pev_valid(ent))
 			continue;
 
 		if(bitarray_check(g_bEntCorpse, ent) && FInViewCone(id, ent))
-			return ent;
+		{
+			tmpLength = entity_range(id, ent);
+			if (length > tmpLength)
+			{
+				tmpEnt = ent;
+				length = tmpLength;
+			}
+		}
 	}
-	return 0;
+
+	return tmpEnt;
 }
 
 //====================================================
