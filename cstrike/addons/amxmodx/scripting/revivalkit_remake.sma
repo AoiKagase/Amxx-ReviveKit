@@ -155,7 +155,7 @@ enum _:E_CVARS
 	RKIT_BUYMODE,
 	RKIT_BUYZONE,
 	Float:RKIT_DISTANCE,
-	RKIT_CHECK_OBSTACLE,
+//	RKIT_CHECK_OBSTACLE,
 	RKIT_REWARD,
 	Float:RKIT_REVIVE_RADIUS,
 	RKIT_REVIVE_ATTEMPT,
@@ -179,7 +179,7 @@ new g_CVarString	[E_CVARS][][] =
 	{"rkit_buy_mode",				"1",	"num"},
 	{"rkit_buy_zone",				"1",	"num"},
 	{"rkit_distance",				"70.0",	"float"},
-	{"rkit_check_obstacle",			"1",	"num"},
+//	{"rkit_check_obstacle",			"1",	"num"},
 	{"rkit_reward",					"150",	"num"},
 	{"rkit_revive_radius",			"10.0",	"float"},
 	{"rkit_revive_attempt",			"10",	"num"},
@@ -562,9 +562,7 @@ public PlayerPostThink(id)
 						create_fake_corpse(id);
 
 					// if (pev(id, pev_deadflag) == DEAD_DEAD)
-					// {
 					// 	client_print_color(0, print_chat, "^4[Revive Kit]:^1 Timing of corpse creation.");
-					// }
 				}
 			}
 
@@ -963,8 +961,7 @@ stock find_dead_body(id)
 		if (!pev_valid(ent))
 			continue;
 
-		pev(ent, pev_classname, classname, 31);
-		if(equali(classname, ENTITY_CLASS_NAME[CORPSE]) && is_ent_visible(id, ent, IGNORE_MONSTERS))
+		if(bitarray_check(g_baCorpseEntity, ent) && is_ent_visible(id, ent, IGNORE_MONSTERS))
 			return ent;
 	}
 	return 0;
@@ -973,26 +970,52 @@ stock find_dead_body(id)
 //====================================================
 // Visible Corpse?.
 //====================================================
-stock bool:is_ent_visible(index, entity, ignoremonsters = 0) 
+stock bool:is_ent_visible(id, iEnt, ignoremonsters = 0) 
 {
 	// Non Check Obstacle.
 	if (!g_cvars[RKIT_CHECK_OBSTACLE])
 		return true;
 
 	new Float:start[3], Float:dest[3];
-	pev(index, pev_origin, start);
-	pev(index, pev_view_ofs, dest);
+	pev(id, pev_origin, start);
+	pev(id, pev_view_ofs, dest);
 	xs_vec_add(start, dest, start);
 
-	pev(entity, pev_origin, dest);
-	engfunc(EngFunc_TraceLine, start, dest, ignoremonsters, index, 0);
+	pev(iEnt, pev_origin, dest);
+	engfunc(EngFunc_TraceLine, start, dest, ignoremonsters, id, 0);
 
 	new Float:fraction;
 	get_tr2(0, TR_flFraction, fraction);
-	if (fraction == 1.0 || get_tr2(0, TR_pHit) == entity)
+	if (fraction == 1.0 || get_tr2(0, TR_pHit) == iEnt)
 		return true;
 
 	return false;
+}
+#define FOV_VALUE 0.5
+stock bool:FInViewCone(const i_Entity, const i_Other)
+{
+	static Float:vf_EntAngles  [3], Float:vf_EntOrigin[3];
+	static Float:vf_OtherOrigin[3], Float:f_Dot;
+
+	pev(i_Entity, pev_angles, vf_EntAngles);
+
+    engfunc(EngFunc_MakeVectors, vf_EntAngles);
+    global_get(glb_v_forward, vf_EntAngles);
+	vf_EntAngles[2] = 0.0;
+
+	pev(i_Entity, pev_origin, vf_EntOrigin);
+	pev(i_Other , pev_origin, vf_OtherOrigin);
+
+	xs_vec_sub (vf_OtherOrigin, vf_EntOrigin, vf_OtherOrigin); 
+	vf_OtherOrigin[2] = 0.0;
+	xs_vec_normalize(vf_OtherOrigin, vf_OtherOrigin);
+
+	f_Dot = xs_vec_dot(vf_OtherOrigin, vf_EntAngles);
+
+	if (f_Dot > FOV_VALUE)
+		return true;
+
+    return false;
 }
 
 //====================================================
@@ -1102,8 +1125,8 @@ stock create_fake_corpse(id)
 			dllfunc(DLLFunc_Spawn, ent);
 		}	
 	}
-	g_player_data[id][DEADBODY_ID] = ent;
 	CreateSprite(ent);
+	g_player_data[id][DEADBODY_ID] = ent;
 	set_task(0.1, "HideBody", id + TASKID_HIDEBODY);
 }
 
