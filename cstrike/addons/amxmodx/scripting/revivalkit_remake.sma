@@ -620,20 +620,9 @@ public PlayerPostThink(id)
 	if (!g_player_data[id][HAS_KIT])
 		return FMRES_IGNORED;
 
-	static body; body = find_dead_body(id);
-	if(pev_valid(body))
-	{
-		static dead_id; 
-		dead_id = pev(body, pev_owner);
-	
-		if(!is_user_connected(dead_id))
-			return FMRES_IGNORED;
-
-		static CsTeams:lb_team; 
-		lb_team = CsTeams:pev(body, pev_team);
-		if(lb_team == rev_team)
-			msg_statusicon(id, ICON_FLASH);
-	}
+	static target, body;
+	if (can_target_revive(id, target, body))
+		msg_statusicon(id, ICON_FLASH);
 	else
 		msg_statusicon(id, ICON_SHOW);
 	
@@ -980,31 +969,29 @@ stock find_dead_body(id)
 //====================================================
 // Visible Corpse?.
 //====================================================
-#define FOV_VALUE 0.5
-stock bool:FInViewCone(const i_Entity, const i_Other)
+stock bool:FInViewCone(const id, const iEnt)
 {
-	static Float:vf_EntAngles  [3], Float:vf_EntOrigin[3];
-	static Float:vf_OtherOrigin[3], Float:f_Dot;
+	new Float:angles[3];
+	new Float:point[3];
+	pev(iEnt, pev_origin, point);
+	pev(id, pev_angles, angles);
+	engfunc(EngFunc_MakeVectors, angles);
+	global_get(glb_v_forward, angles);
+	angles[2] = 0.0;
 
-	pev(i_Entity, pev_angles, vf_EntAngles);
+	new Float:origin[3], Float:diff[3], Float:norm[3];
+	pev(id, pev_origin, origin);
+	xs_vec_sub(point, origin, diff);
+	diff[2] = 0.0;
+	xs_vec_normalize(diff, norm);
 
-    engfunc(EngFunc_MakeVectors, vf_EntAngles);
-    global_get(glb_v_forward, vf_EntAngles);
-	vf_EntAngles[2] = 0.0;
-
-	pev(i_Entity, pev_origin, vf_EntOrigin);
-	pev(i_Other , pev_origin, vf_OtherOrigin);
-
-	xs_vec_sub (vf_OtherOrigin, vf_EntOrigin, vf_OtherOrigin); 
-	vf_OtherOrigin[2] = 0.0;
-	xs_vec_normalize(vf_OtherOrigin, vf_OtherOrigin);
-
-	f_Dot = xs_vec_dot(vf_OtherOrigin, vf_EntAngles);
-
-	if (f_Dot > FOV_VALUE)
+	new Float:dot, Float:fov;
+	dot = xs_vec_dot(norm, angles);
+	pev(id, pev_fov, fov);
+	if (dot >= floatcos(fov * M_PI / 360))
 		return true;
 
-    return false;
+	return false;
 }
 
 //====================================================
@@ -1128,9 +1115,9 @@ public HideBody(taskid)
 	new id = taskid - TASKID_HIDEBODY;
 	if (!g_cvars[RKIT_CORPSE_STYLE])
 		set_pev(id, pev_effects, EF_NODRAW);
-	// else
-	// 	if (pev_valid(g_player_data[id][DEADBODY_ID]))
-	// 		set_pev(g_player_data[id][DEADBODY_ID], pev_frame, float(_:cs_get_user_team(id) - 1));
+	else
+		if (pev_valid(g_player_data[id][DEADBODY_ID]))
+			set_pev(g_player_data[id][DEADBODY_ID], pev_frame, float(_:cs_get_user_team(id) - 1));
 }
 
 //====================================================
