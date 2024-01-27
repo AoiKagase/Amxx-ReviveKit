@@ -155,7 +155,7 @@ enum _:E_CVARS
 	RKIT_BUYMODE,
 	RKIT_BUYZONE,
 	Float:RKIT_DISTANCE,
-	RKIT_CHECK_OBSTACLE,
+//	RKIT_CHECK_OBSTACLE,
 	RKIT_REWARD,
 	Float:RKIT_REVIVE_RADIUS,
 	RKIT_REVIVE_ATTEMPT,
@@ -179,7 +179,7 @@ new g_CVarString	[E_CVARS][][] =
 	{"rkit_buy_mode",				"1",	"num"},
 	{"rkit_buy_zone",				"1",	"num"},
 	{"rkit_distance",				"70.0",	"float"},
-	{"rkit_check_obstacle",			"1",	"num"},
+//	{"rkit_check_obstacle",			"1",	"num"},
 	{"rkit_reward",					"150",	"num"},
 	{"rkit_revive_radius",			"10.0",	"float"},
 	{"rkit_revive_attempt",			"10",	"num"},
@@ -206,7 +206,8 @@ new g_bIsUserAlive 	= 0;
 #define bitarray_reset(%1) 		arrayset(%1, 0, sizeof(%1))
 #define bitarray_check(%1,%2) 	(%1[%2>>5] & (1<<(%2 & 31)))
 
-new g_baTeamSprites[bitarray_max(4096) + 1];
+new g_bEntCorpse	[bitarray_max(4096) + 1];
+new g_bEntRKit		[bitarray_max(4096) + 1];
 
 stock IsUserBot(id)	
 { 
@@ -230,16 +231,23 @@ stock SetUserAlive(id, bool:alive)
 	else
 		g_bIsUserAlive &= ~(1 << id);
 }
-stock CreateSprite(iEnt)
+stock CreateCorpse(iEnt)
 {
-	RemoveSprite(iEnt);
+	RemoveCorpse(iEnt);
 	if (pev_valid(iEnt))
-		bitarray_set(g_baTeamSprites, iEnt);
+		bitarray_set(g_bEntCorpse, iEnt);
 }
-stock RemoveSprite(iEnt)
+stock CreateKit(iEnt)
 {
-	bitarray_clear(g_baTeamSprites, iEnt);
+	RemoveKit(iEnt);
+	if (pev_valid(iEnt))
+		bitarray_set(g_bEntRKit, iEnt);
 }
+
+stock RemoveCorpse(iEnt)
+	bitarray_clear(g_bEntCorpse, iEnt);
+stock RemoveKit(iEnt)
+	bitarray_clear(g_bEntRKit, iEnt);
 //====================================================
 //  PLUGIN PRECACHE
 //====================================================
@@ -327,6 +335,7 @@ public cvar_change_callback(pcvar, const old_value[], const new_value[])
 				g_cvars[i] = _:str_to_float(new_value);
 
 			console_print(0,"[RKit Debug]: Changed Cvar '%s' => '%s' to '%s'", g_CVarString[i][0], old_value, new_value);
+			break;
 		}
 	}
 
@@ -532,7 +541,8 @@ public PlayerPostThink(id)
 		return FMRES_IGNORED;
 
 	// Team.
-	static CsTeams:rev_team; rev_team = cs_get_user_team(id);
+	static CsTeams:rev_team; 
+	rev_team = cs_get_user_team(id);
 
 	// is user dead?
 	// Player Die Finelize.
@@ -556,15 +566,11 @@ public PlayerPostThink(id)
 						return FMRES_IGNORED;
 				}
 
-				if (rev_team == CS_TEAM_T || rev_team == CS_TEAM_CT)
+				if (CS_TEAM_T <= rev_team <= CS_TEAM_CT)
 				{
+					// Dead? create fake corpse.
 					if (pev(id, pev_health) <= 0.0)
 						create_fake_corpse(id);
-
-					// if (pev(id, pev_deadflag) == DEAD_DEAD)
-					// {
-					// 	client_print_color(0, print_chat, "^4[Revive Kit]:^1 Timing of corpse creation.");
-					// }
 				}
 			}
 
@@ -614,18 +620,9 @@ public PlayerPostThink(id)
 	if (!g_player_data[id][HAS_KIT])
 		return FMRES_IGNORED;
 
-	static body; body = find_dead_body(id);
-	if(pev_valid(body))
-	{
-		static lucky_bastard; lucky_bastard = pev(body, pev_owner);
-	
-		if(!is_user_connected(lucky_bastard))
-			return FMRES_IGNORED;
-
-		static CsTeams:lb_team; lb_team = cs_get_user_team(lucky_bastard);
-		if((lb_team == CS_TEAM_T || lb_team == CS_TEAM_CT) && lb_team == rev_team)
-			msg_statusicon(id, ICON_FLASH);
-	}
+	static target, body;
+	if (can_target_revive(id, target, body))
+		msg_statusicon(id, ICON_FLASH);
 	else
 		msg_statusicon(id, ICON_SHOW);
 	
@@ -639,25 +636,27 @@ public RKitTouch(kit, id)
 {
 	#if defined DEBUG_MODE
 	new class[32];
-	pev(kit, pev_classname, class, 31);
-	if (equali(class, ENTITY_CLASS_NAME[CORPSE]))
+	if (bitarray_check(g_bEntCorpse, kit))
 	{
 		set_pev(kit, pev_flags, pev(kit, pev_flags) | FL_KILLME);
 		dllfunc(DLLFunc_Think, kit);
 	}
 	#endif
+
 	if(!pev_valid(kit))
 		return FMRES_IGNORED;
 	
 	if(!IsUserAlive(id) || g_player_data[id][HAS_KIT])
 		return FMRES_IGNORED;
 	
-	new classname[32];
-	pev(kit, pev_classname, classname, 31);
-	
-	if (equal(classname, ENTITY_CLASS_NAME[R_KIT]))
+	if (bitarray_check(g_bEntRKit, kit))
 	{
-		engfunc(EngFunc_RemoveEntity, kit);
+		if(bitarray_check(g_bEntRKit, kit))
+			RemoveKit(kit);
+
+		set_pev(kit, pev_flags, pev(kit, pev_flags) | FL_KILLME);
+		dllfunc(DLLFunc_Think, kit);
+
 		g_player_data[id][HAS_KIT] = true;
 		client_cmd(id, "spk %s", ENT_SOUNDS[SOUND_EQUIP]);
 	}
@@ -741,13 +740,14 @@ stock CheckDeadBody(id)
 		return false;
 
 	new lucky_bastard 		= pev(body, pev_owner);
-	new CsTeams:lb_team 	= cs_get_user_team(lucky_bastard);
+	new CsTeams:lb_team 	= CsTeams:pev(body, pev_team);
 	new CsTeams:rev_team 	= cs_get_user_team(id);
-	if(lb_team != CS_TEAM_T && lb_team != CS_TEAM_CT || lb_team != rev_team)
-		return false;
-
-	client_print_color(id, print_chat, "^4[Revive Kit]:^1 Reviving %n", lucky_bastard);
-	return true;
+	if(lb_team == rev_team)
+	{
+		client_print_color(id, print_chat, "^4[Revive Kit]:^1 Reviving %n", lucky_bastard);
+		return true;
+	}
+	return false;
 }
 
 //====================================================
@@ -781,16 +781,20 @@ public TaskRevive(taskid)
 		{
 			set_pev(body, pev_flags, pev(body, pev_flags) | FL_KILLME);			
 			emit_sound(id, CHAN_AUTO, ENT_SOUNDS[SOUND_FINISHED], VOL_NORM, ATTN_NORM, 0, PITCH_NORM);
+
 			// Reward
 			if (g_cvars[RKIT_REWARD] > 0)
 				cs_set_user_money(id, cs_get_user_money(id) + g_cvars[RKIT_REWARD]);
+
 			set_task(0.1, "TaskReSpawn", TASKID_RESPAWN + target);
 			remove_task(taskid);
+
 			client_print_color(id, print_chat, "^4[Revive Kit]:^1 %n revived successfully", target);
 
-			new iPlayers[MAX_PLAYERS];
-			new iPlnum, player;
+			static iPlayers[MAX_PLAYERS];
+			static iPlnum, player;
 			get_players_ex(iPlayers, iPlnum, GetPlayers_MatchTeam, (cs_get_user_team(id) == CS_TEAM_CT) ? "CT" : "TERRORIST");
+
 			for (new i = 0; i < iPlnum; i++)
 			{
 				player = iPlayers[i];
@@ -810,7 +814,6 @@ public TaskReSpawn(taskid)
 	
 	g_player_data[id][IS_RESPAWNING] = true;
 	ExecuteHamB(Ham_CS_RoundRespawn, id);
-	//	set_task(0.1, "TaskCheckReSpawn", TASKID_CHECKRE + id);
 
 	if (!IsUserBot(id))
 	{
@@ -897,13 +900,8 @@ public TaskSetplayer(taskid)
 		// Recover the weapon you had just before.
 		while((entity = engfunc(EngFunc_FindEntityInSphere, entity, vOrigin, radius)) != 0)
 		{
-			if (pev_valid(entity))
-			{
-				if(pev(entity, pev_owner) == id)
-				{
-					dllfunc(DLLFunc_Touch, entity, id);
-				}
-			}
+			if (pev_valid(entity) && (pev(entity, pev_owner) == id))
+				dllfunc(DLLFunc_Touch, entity, id);
 		}
 	} else {
 		// WeaponStrip / Knives only.
@@ -930,12 +928,13 @@ stock bool:can_target_revive(id, &target, &body)
 	if(!is_user_connected(target))
 		return false;
 
-	new lb_team  = get_user_team(target);
-	new rev_team = get_user_team(id);
-	if(lb_team != 1 && lb_team != 2 || lb_team != rev_team)
-		return false;
+	new CsTeams:lb_team  = CsTeams:pev(body, pev_team);
+	new CsTeams:rev_team = cs_get_user_team(id);
 
-	return true;
+	if(lb_team == rev_team)
+		return true;
+
+	return false;
 }
 
 //====================================================
@@ -956,40 +955,51 @@ stock find_dead_body(id)
 	pev(id, pev_origin, origin);
 	
 	new ent = -1;
-	static classname[32];
-
+	new Float:length = 99999.0;
+	new Float:tmpLength = 0.0;
+	new tmpEnt = -1;
 	while((ent = engfunc(EngFunc_FindEntityInSphere, ent, origin, g_cvars[RKIT_DISTANCE])) != 0)
 	{
 		if (!pev_valid(ent))
 			continue;
 
-		pev(ent, pev_classname, classname, 31);
-		if(equali(classname, ENTITY_CLASS_NAME[CORPSE]) && is_ent_visible(id, ent, IGNORE_MONSTERS))
-			return ent;
+		if(bitarray_check(g_bEntCorpse, ent) && FInViewCone(id, ent))
+		{
+			tmpLength = entity_range(id, ent);
+			if (length > tmpLength)
+			{
+				tmpEnt = ent;
+				length = tmpLength;
+			}
+		}
 	}
-	return 0;
+
+	return tmpEnt;
 }
 
 //====================================================
 // Visible Corpse?.
 //====================================================
-stock bool:is_ent_visible(index, entity, ignoremonsters = 0) 
+stock bool:FInViewCone(const id, const iEnt)
 {
-	// Non Check Obstacle.
-	if (!g_cvars[RKIT_CHECK_OBSTACLE])
-		return true;
+	new Float:angles[3];
+	new Float:point[3];
+	pev(iEnt, pev_origin, point);
+	pev(id, pev_angles, angles);
+	engfunc(EngFunc_MakeVectors, angles);
+	global_get(glb_v_forward, angles);
+	angles[2] = 0.0;
 
-	new Float:start[3], Float:dest[3];
-	pev(index, pev_origin, start);
-	pev(index, pev_view_ofs, dest);
-	xs_vec_add(start, dest, start);
+	new Float:origin[3], Float:diff[3], Float:norm[3];
+	pev(id, pev_origin, origin);
+	xs_vec_sub(point, origin, diff);
+	diff[2] = 0.0;
+	xs_vec_normalize(diff, norm);
 
-	pev(entity, pev_origin, dest);
-	engfunc(EngFunc_TraceLine, start, dest, ignoremonsters, index, 0);
-
-	new Float:fraction;
-	get_tr2(0, TR_flFraction, fraction);
-	if (fraction == 1.0 || get_tr2(0, TR_pHit) == entity)
+	new Float:dot, Float:fov;
+	dot = xs_vec_dot(norm, angles);
+	pev(id, pev_fov, fov);
+	if (dot >= floatcos(fov * M_PI / 360))
 		return true;
 
 	return false;
@@ -1097,13 +1107,13 @@ stock create_fake_corpse(id)
 			set_pev(ent, pev_spawnflags,		SF_SPRITE_STARTON);
 			set_pev(ent, pev_team, 				team);
 //			set_pev(ent, pev_flags, 			pev(ent, pev_flags) | FL_MONSTER);
-			set_pev(ent, pev_frame, 			Float:(_:cs_get_user_team(id) - 1));
+			set_pev(ent, pev_frame, 			Float:(_:team - 1));
 			set_pev(ent, pev_nextthink, 		get_gametime() + 0.1);
 			dllfunc(DLLFunc_Spawn, ent);
 		}	
 	}
+	CreateCorpse(ent);
 	g_player_data[id][DEADBODY_ID] = ent;
-	CreateSprite(ent);
 	set_task(0.1, "HideBody", id + TASKID_HIDEBODY);
 }
 
@@ -1134,11 +1144,8 @@ public CorpseThink(iEnt)
 	if (!pev_valid(iEnt))
 		return HAM_IGNORED;
 
-	new entityName[MAX_NAME_LENGTH];
-	pev(iEnt, pev_classname, entityName, charsmax(entityName));
-
 	// is this corpse sprite? no.
-	if (!equali(entityName, ENTITY_CLASS_NAME[CORPSE]))
+	if (!bitarray_check(g_bEntCorpse, iEnt))
 		return HAM_IGNORED;
 
 	// Rolling.
@@ -1161,7 +1168,7 @@ public PlayerAddToFullPack(es_handle, e, ent, host, hostflags, player, pSet)
 	 	return FMRES_IGNORED;
 
 	// is sprite
-	if (bitarray_check(g_baTeamSprites, ent))
+	if (bitarray_check(g_bEntCorpse, ent))
 	{
 		// Check other team.
 		if (_:cs_get_user_team(host) != pev(ent, pev_team))
@@ -1281,9 +1288,6 @@ stock show_progress(id, seconds)
 		engfunc(EngFunc_MessageBegin, MSG_ONE, g_msg_data[MSG_BARTIME], {0,0,0}, id);
 		write_short(seconds);
 		message_end();
-		// message_begin(MSG_ONE_UNRELIABLE, g_msg_data[MSG_BARTIME], {0.0,0.0,0.0}, id);
-		// write_short(seconds);
-		// message_end();
 	}
 }
 
@@ -1339,6 +1343,7 @@ stock drop_rkit(id)
 		engfunc(EngFunc_SetSize, kit, Float:{-2.5, -2.5, -1.5}, Float:{2.5, 2.5, 1.5});
 		set_pev(kit, pev_solid, SOLID_TRIGGER);
 		set_pev(kit, pev_movetype, MOVETYPE_TOSS);
+		CreateKit(kit);
 	}
 }
 
@@ -1354,9 +1359,12 @@ stock remove_target_entity_by_owner(id, className[])
 		{
 			if (pev(iEnt, pev_owner) == id)
 			{
+				if (bitarray_check(g_bEntCorpse, iEnt))
+					RemoveCorpse(iEnt);
+				if (bitarray_check(g_bEntRKit, iEnt))
+					RemoveKit(iEnt);
+
 				set_pev(iEnt, pev_flags, pev(iEnt, pev_flags) | FL_KILLME);
-				if(bitarray_check(g_baTeamSprites, iEnt))
-					RemoveSprite(iEnt);
 				dllfunc(DLLFunc_Think, iEnt);
 			}
 		}
@@ -1373,9 +1381,12 @@ stock remove_target_entity_by_classname(className[])
 	{
 		if (pev_valid(iEnt))
 		{
+			if (bitarray_check(g_bEntCorpse, iEnt))
+				RemoveCorpse(iEnt);
+			if (bitarray_check(g_bEntRKit, iEnt))
+				RemoveKit(iEnt);
+
 			set_pev(iEnt, pev_flags, pev(iEnt, pev_flags) | FL_KILLME);
-			if(bitarray_check(g_baTeamSprites, iEnt))
-				RemoveSprite(iEnt);
 			dllfunc(DLLFunc_Think, iEnt);
 		}
 	}
@@ -1504,29 +1515,5 @@ stock find_dead_body_debug(id)
 			return ent;
 	}
 	return 0;
-}
-
-public ShowInfo(Float:vStart[3], Float:vEnd[3], Conditions, id, iTrace)
-{
-	static iHit, szName[MAX_NAME_LENGTH], iOwner;
-	static hudMsg[64];
-
-	iHit = get_tr2(iTrace, TR_pHit);
-	if (pev_valid(iHit))
-	{
-		pev(iHit, pev_classname, szName, charsmax(szName));
-
-		// if (equali(szName, "player")) 
-		{
-			iOwner = pev(iHit, pev_owner);
-
-			formatex(hudMsg, charsmax(hudMsg), "Class: %s, Owner: %n", szName, iOwner);
-			// set_hudmessage(red = 200, green = 100, blue = 0, Float:x = -1.0, Float:y = 0.35, effects = 0, Float:fxtime = 6.0, Float:holdtime = 12.0, Float:fadeintime = 0.1, Float:fadeouttime = 0.2, channel = -1)
-			set_hudmessage(50, 100, 150, -1.0, 0.60, 0, 6.0, 0.4, 0.0, 0.0, -1);
-			show_hudmessage(id, hudMsg);
-		}
-    }
-
-	return FMRES_IGNORED;
 }
 #endif
