@@ -24,6 +24,8 @@ https://forums.alliedmods.net/showthread.php?p=252625
 | `rkit_revive_attempt` | 10 | Number of times the revive point is calculated |
 | `rkit_revive_move_lock` | 1 | Locked movement during resuscitation |
 | `rkit_respawn_weaponstrip` | 0 | Discard all weapons upon resurrection (surrounding weapons are picked up, so only the main arm is left). |
+| `rkit_corpse_style` | 0 | Sets the method of representation of the corpse. (0 = default corpse. 1 = Display a sprite of a skull instead of a corpse) |
+| `rkit_sprite_rotation_speed` | 0 | Set only when the skull sprite is displayed. 0 = Always faces the player's direction. 1 or more = Sprite rotates. (The speed changes depending on the value.) |
 
 ## Credits
 #### Genuine Article.
