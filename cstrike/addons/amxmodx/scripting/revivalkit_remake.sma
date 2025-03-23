@@ -928,10 +928,14 @@ stock bool:can_target_revive(id, &target, &body)
 	if(!is_user_connected(target))
 		return false;
 
+	static CsTeams:targetTeam; targetTeam = cs_get_user_team(target);
+	if (targetTeam == CS_TEAM_SPECTATOR || targetTeam == CS_TEAM_UNASSIGNED)
+		return false;
+
 	new CsTeams:lb_team  = CsTeams:pev(body, pev_team);
 	new CsTeams:rev_team = cs_get_user_team(id);
 
-	if(lb_team == rev_team)
+	if(targetTeam == lb_team && lb_team == rev_team)
 		return true;
 
 	return false;
